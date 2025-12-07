@@ -1,7 +1,9 @@
 """tomasulo core interface - to be implemented by Part 2"""
 
 from typing import Dict, Any, List, Optional
+from src.execution.tomasulo_core import *
 
+core = ExecutionCore()
 
 def get_ready_rs_entries() -> List[Dict[str, Any]]:
     """
@@ -12,14 +14,11 @@ def get_ready_rs_entries() -> List[Dict[str, Any]]:
             - id: RS entry id
             - instruction: instruction data structure
             - other RS entry fields
-            
-    note:
-        this function is to be implemented by Part 2 (tomasulo core)
     """
-    pass  # implemented by Part 2
+    return core.get_ready_rs_entries()
 
 
-def get_rs_operands(rs_entry: Dict[str, Any]) -> Dict[str, Any]:
+def get_rs_operands(rs_entry: ReservationStation) -> Dict[str, Any]:
     """
     get operand values and dependencies for an RS entry
     
@@ -38,7 +37,7 @@ def get_rs_operands(rs_entry: Dict[str, Any]) -> Dict[str, Any]:
     note:
         this function is to be implemented by Part 2 (tomasulo core)
     """
-    pass  # implemented by Part 2
+    return core.get_rs_operands(rs_entry)
 
 
 def update_rob_value(rob_index: int, value: Any) -> None:
@@ -48,12 +47,8 @@ def update_rob_value(rob_index: int, value: Any) -> None:
     args:
         rob_index: ROB entry index
         value: computed result value
-        
-    note:
-        this function is to be implemented by Part 2 (tomasulo core)
     """
-    pass  # implemented by Part 2
-
+    core.update_rob_value(rob_index, value)
 
 def forward_to_rs(rob_index: int, value: Any) -> None:
     """
@@ -67,7 +62,7 @@ def forward_to_rs(rob_index: int, value: Any) -> None:
         this function is to be implemented by Part 2 (tomasulo core)
         should update Qj/Qk in RS entries that are waiting for this ROB index
     """
-    pass  # implemented by Part 2
+    core.forward_to_rs(rob_index, value)
 
 
 def update_rat(rob_index: int, value: Any) -> None:
@@ -82,7 +77,7 @@ def update_rat(rob_index: int, value: Any) -> None:
         this function is to be implemented by Part 2 (tomasulo core)
         should update RAT entry if it still points to this ROB index
     """
-    pass  # implemented by Part 2
+    core.update_rat(rob_index, value)
 
 
 def notify_branch_result(rob_index: int, taken: bool, target: int) -> None:
@@ -98,7 +93,7 @@ def notify_branch_result(rob_index: int, taken: bool, target: int) -> None:
         this function is to be implemented by Part 2 (tomasulo core)
         Part 2 should check for misprediction and handle flush if needed
     """
-    pass  # implemented by Part 2
+    core.notify_branch_result(rob_index, taken, target)
 
 
 def mark_rs_executing(rs_entry_id: int) -> None:
@@ -111,7 +106,7 @@ def mark_rs_executing(rs_entry_id: int) -> None:
     note:
         this function is to be implemented by Part 2 (tomasulo core)
     """
-    pass  # implemented by Part 2
+    core.mark_rs_executing(rs_entry_id)
 
 
 def get_oldest_ready_rob_index() -> Optional[int]:
@@ -124,5 +119,5 @@ def get_oldest_ready_rob_index() -> Optional[int]:
     note:
         this function is to be implemented by Part 2 (tomasulo core)
     """
-    pass  # implemented by Part 2
+    return core.get_oldest_ready_rob_index()
 
