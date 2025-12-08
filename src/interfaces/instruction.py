@@ -1,9 +1,5 @@
-"""
-Docstring for interfaces.instruction
-"""
-
 class Instruction:
-    def __init__(self, name, rA = None, rB = None, rC = None, immediate = None, label = None):
+    def __init__(self, name, rA = None, rB = None, rC = None, immediate = None, label = None, instr_id = None):
         """
         Represents a single instruction.
         """
@@ -14,6 +10,7 @@ class Instruction:
         self._immediate = immediate
         self._label = label
         self._issue_cycle = None
+        self._instr_id = instr_id
 
     def get_name(self):
         return self._name
@@ -35,6 +32,12 @@ class Instruction:
 
     def get_issue_cycle(self):
         return self._issue_cycle
+    
+    def get_instr_id(self):
+        return self._instr_id
 
     def set_issue_cycle(self, cycle):
         self._issue_cycle = cycle
+
+    def set_instr_id(self, instr_id):
+        self._instr_id = instr_id

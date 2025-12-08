@@ -1,15 +1,17 @@
-from instruction import Instruction
-from register_interface import RegisterFile
+from .instruction import Instruction
+from .register_interface import RegisterFile
+from ..execution.timing_tracker import TimingTracker
 
 class IssueUnit:
     """
     Issues one instruction per cycle, reads registers, and records the issue cycle
     """
-    def __init__(self, instructions, register_file):
+    def __init__(self, instructions, register_file, timing_tracker):
         self._instructions = instructions
         self._register_file = register_file
         self._next_index = 0  # index of the next instruction to issue
         self._issued_instructions = []  # track issued instructions
+        self._timing_tracker = timing_tracker
 
     def issue_next(self, cycle):
         """
@@ -26,6 +28,9 @@ class IssueUnit:
         
         instr = self._instructions[self._next_index]
         instr.set_issue_cycle(cycle)
+
+        # UPDATE TIMING TRACKER
+        self._timing_tracker.record_issue(instr.get_instr_id(), cycle)
 
         rA_val = self._register_file.read(instr.get_rA()) if instr.get_rA() is not None else None
         rB_val = self._register_file.read(instr.get_rB()) if instr.get_rB() is not None else None

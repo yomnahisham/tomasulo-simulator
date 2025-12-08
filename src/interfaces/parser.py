@@ -1,4 +1,4 @@
-from instruction import Instruction
+from .instruction import Instruction
 
 class Parser:
     """
@@ -23,6 +23,7 @@ class Parser:
         """
 
         self._filepath = filepath
+        instr_id_counter = 1 
 
         with open(self._filepath, 'r') as file:
             lines = file.readlines()
@@ -34,8 +35,19 @@ class Parser:
                 continue
 
             instruction = self._parse_line(line)
+
+            instruction.set_instr_id(instr_id_counter)
+            instr_id_counter += 1
+
             self._instructions.append(instruction)
 
+        print("\nParsed Instructions:")
+        for instr in self._instructions:
+            print(
+                f"ID = {instr.get_instr_id()} | Name = {instr.get_name()} | "
+                f"rA = {instr.get_rA()} | rB = {instr.get_rB()} | rC = {instr.get_rC()} | "
+                f"imm = {instr.get_immediate()} | label = {instr.get_label()} | "
+            )
         return self._instructions
 
     def _parse_line(self, line):
