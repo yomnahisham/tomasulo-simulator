@@ -16,7 +16,11 @@ tomasulo-simulator/
 │       ├── memory_interface.py    # Part 1 memory API
 │       ├── register_interface.py  # Part 1 register API
 │       └── tomasulo_interface.py  # Part 2 RS/ROB/RAT API
-└── tests/                  # Unit tests
+│       ├── parser.py               
+│       ├── instruction.py          
+│       └── issue_unit.py          
+├── tests/                  # Unit tests
+└── testcases/ # Assembly files for testing
 ```
 
 ## Components
@@ -32,6 +36,10 @@ tomasulo-simulator/
 
 ### Execution Manager
 coordinates all functional units, handles cycle-by-cycle execution, and manages the execution pipeline.
+
+### Parser & Instruction Issuer
+- Parser reads assembly files and converts lines into `Instruction` objects.
+- IssueUnit issues instructions one per cycle, tracks issued instructions, and records issue timing.
 
 ### Common Data Bus (CDB)
 enforces single write-back per cycle constraint and broadcasts results to ROB and waiting RS entries.
