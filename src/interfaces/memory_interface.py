@@ -1,32 +1,42 @@
-"""memory interface - to be implemented by Part 1"""
+"""16-bit word-addressable memory"""
 
+class Memory:
+    def __init__(self):
+        self._memory = {}
 
-def read_memory(address: int) -> int:
-    """
-    read 16-bit word from memory at given address
+    def read(self, address):
+        """
+        Read 16-bit word from memory at given address
+        
+        args:
+            address: memory address (16-bit word addressable)
+            
+        returns:
+            16-bit value from memory
+        """
+        if address < 0:
+            raise ValueError(f"Invalid memory address: {address}")
+        
+        return self._memory.get(address, 0) # if value at address doesnt exist, we reutrn 0
     
-    args:
-        address: memory address (16-bit word addressable)
+    def write(self, address, value):
+        """
+        Write 16-bit word to memory at given address
         
-    returns:
-        16-bit value from memory
+        args:
+            address: memory address (16-bit word addressable)
+            value: 16-bit value to write
+        """
+        if address < 0:
+            raise ValueError(f"Invalid memory address: {address}")
         
-    note:
-        this function is to be implemented by Part 1 (instruction handling)
-    """
-    pass  # implemented by Part 1
+        self._memory[address] = value & 0xFFFF # keep value in 16 bits 
 
+    def dump(self):
+        """
+        Return the full memory (for debugging purposes)
+        """
+        return self._memory
 
-def write_memory(address: int, value: int) -> None:
-    """
-    write 16-bit word to memory at given address
-    
-    args:
-        address: memory address (16-bit word addressable)
-        value: 16-bit value to write
-        
-    note:
-        this function is to be implemented by Part 1 (instruction handling)
-    """
-    pass  # implemented by Part 1
+     
 

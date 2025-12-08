@@ -1,18 +1,41 @@
-"""register interface - to be implemented by Part 1"""
+"""16-bit Register File (8 registers)"""
+
+class RegisterFile:
+    def __init__(self):
+        self._registers = [0] * 8 # 8 registers, all initialized to 0
 
 
-def read_register(reg: int) -> int:
-    """
-    read value from register
+    def read(self, register):
+        """
+        Read value from register
+        
+        args:
+            register: register number (0-7)
+            
+        returns:
+            16-bit register value (R0 always returns 0)
+        """
+        if (register < 0 or register >= 7):
+            raise ValueError(f"Invalid register index: {register}")
+        
+        return self._registers[register]
     
-    args:
-        reg: register number (0-7)
+    def write(self, register, value):
+        """
+        Write value to register
         
-    returns:
-        16-bit register value (R0 always returns 0)
+        args:
+            register: register number (0-7)
+            value: value to be stored
+        """
+        if (register < 0 or register > 7):
+            raise ValueError(f"Invalid register index: {register}")
         
-    note:
-        this function is to be implemented by Part 1 (instruction handling)
-    """
-    pass  # implemented by Part 1
+        if register != 0: # ignore write if register is 0 
+            self._registers[register] = value & 0xFFFF # keep value in 16 bits
 
+    def dump(self):
+        """
+        Return the full register file (for debugging purposes)
+        """
+        return self._registers
