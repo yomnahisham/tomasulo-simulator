@@ -80,7 +80,7 @@ class ROB_Entry:
         self.ready = False
         self.value = None
 
-    def update(self, value: int) -> None:
+    def update(self, value: Optional[int]) -> None:
         """
         Mark the ROB entry as ready with the computed value
 
@@ -119,19 +119,24 @@ class ReorderBuffer:
         success = self.buffer.enqueue(entry)
         return success
     
-    def update(self, index: int, value: int) -> None:
+    def update(self, index: int, value: Optional[int]) -> None:
         """
         Mark the ROB entry at index as ready with the computed value
         args:
-            index: index of the ROB entry
+            index: index of the ROB entry (actual circular buffer index)
             value: computed result value
         """
         # Check if index is valid before accessing
-        if 0 <= index < self.max_size:
+        if 0 <= index < self.max_size and self.buffer.count > 0:
             try:
-                entry = self.buffer.at(index)
-                if entry is not None:
-                    entry.update(value)
+                # Find the entry by traversing and matching the actual index
+                entries = self.buffer.traverse()
+                for i, entry in enumerate(entries):
+                    if entry is not None:
+                        actual_index = (self.buffer.head + i) % self.max_size
+                        if actual_index == index:
+                            entry.update(value)
+                            return
             except Exception:
                 # Entry may have been committed, ignore
                 pass
