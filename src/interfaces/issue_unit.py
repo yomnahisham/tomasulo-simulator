@@ -18,6 +18,7 @@ class IssueUnit:
         self.reservation_stations = reservation_stations
         self.rob = rob
         self.rat = rat
+        self._last_jump_index = None  # Track the last jump target to allow re-issuing loop instructions
 
     def rat_mapping(self, reg: int, rob_index: int) -> None:
         """
@@ -35,6 +36,8 @@ class IssueUnit:
         If the register is not in the ROB, then it is read directly from the register file
         If the register is in the ROB and ready, then the value is returned
         If the register is in the ROB but not ready, then the ROB index is returned
+        If the register is in the ROB and ready but value is None, read from register file
+        If the ROB entry is for an instruction that doesn't write to registers (BEQ/STORE), read from register file
 
         args:
             reg: register number
@@ -45,7 +48,23 @@ class IssueUnit:
         rob_entry, index = self.rob.find(reg)
         if rob_entry is None:
             return True, self._register_file.read(reg)
+        
+        # If ROB entry is for an instruction that doesn't write to registers, read from register file
+        if rob_entry.name in ["BEQ", "STORE"]:
+            # These instructions don't produce register values, so read from register file
+            return True, self._register_file.read(reg)
+        
         if rob_entry.ready:
+            # If value is None (e.g., from BEQ/STORE), read from register file
+            if rob_entry.value is None:
+                return True, self._register_file.read(reg)
+            # If value is a dict (e.g., from CALL), extract return_address for RET, or read from register file for others
+            if isinstance(rob_entry.value, dict):
+                # For CALL, the dict contains return_address
+                # Only RET should use this directly, others should read from register file
+                # But since we're in get_operand, we'll extract return_address if it's a dict
+                return_addr = rob_entry.value.get("return_address", 0)
+                return True, return_addr
             return True, rob_entry.value
         return False, index
 
@@ -83,8 +102,13 @@ class IssueUnit:
         if rB is not None:
             foundB, valueB = self.get_operand(rB)
             if foundB:
-                Vj = valueB
-                Qj = None
+                # If value is None, treat it as not ready (shouldn't happen for normal instructions)
+                if valueB is None:
+                    Vj = None
+                    Qj = None  # This will cause an error, but it's better than forwarding None
+                else:
+                    Vj = valueB
+                    Qj = None
             else:
                 Vj = None
                 Qj = valueB
@@ -95,8 +119,13 @@ class IssueUnit:
         if rC is not None:
             foundC, valueC = self.get_operand(rC)
             if foundC:
-                Vk = valueC
-                Qk = None
+                # If value is None, treat it as not ready (shouldn't happen for normal instructions)
+                if valueC is None:
+                    Vk = None
+                    Qk = None  # This will cause an error, but it's better than forwarding None
+                else:
+                    Vk = valueC
+                    Qk = None
             else:
                 Vk = None
                 Qk = valueC
@@ -132,7 +161,9 @@ class IssueUnit:
         elif name == "BEQ":
             for rs_name in ['BEQ1', 'BEQ2']:
                 if not self.reservation_stations[rs_name].busy:
-                    self.reservation_stations[rs_name].push(instruction, A=instruction.get_immediate(), dest=rob_index, Vj=Vj, Qj=Qj, Vk=Vk, Qk=Qk)
+                    # Store instruction index as PC (for computing branch target)
+                    instruction_pc = self._next_index  # Current instruction index
+                    self.reservation_stations[rs_name].push(instruction, A=instruction.get_immediate(), dest=rob_index, Vj=Vj, Qj=Qj, Vk=Vk, Qk=Qk, PC=instruction_pc)
                     message = (f"Issued {name} to RS {rs_name}")
                     return True, message
             return False, "BEQ RSs are busy"
@@ -175,6 +206,7 @@ class IssueUnit:
     def issue_next(self, cycle):
         """
         Issue the next instruction in the list.
+        Allows re-issuing instructions that are not in-flight (e.g., for loops).
 
         args:
             cycle: current cycle number.
@@ -186,6 +218,22 @@ class IssueUnit:
             return None, False  # nothing left to issue
         
         instr = self._instructions[self._next_index]
+        
+        # Check if this instruction is still in-flight
+        # If it is, we cannot re-issue it (wait for it to commit first)
+        # EXCEPTION: If we just jumped back to a loop (backwards jump), allow re-issuing
+        # even if in-flight, because we want to execute the loop again with updated values
+        if self.is_instruction_in_flight(instr.get_instr_id()):
+            # If we're at or after a jump target (loop), allow re-issuing
+            if self._last_jump_index is not None and self._next_index >= self._last_jump_index:
+                # Allow re-issuing even if in-flight (will create new ROB entry)
+                # Keep _last_jump_index set until we encounter a forward jump or branch that takes us forward
+                pass
+            else:
+                # Instruction is still in-flight and not at a loop, cannot re-issue yet
+                return None, False
+        
+        # Instruction is not in-flight (committed or never issued), safe to issue/re-issue
         instr.set_issue_cycle(cycle)
 
         # UPDATE TIMING TRACKER
@@ -262,10 +310,41 @@ class IssueUnit:
             return self.jump_to_index(target_index)
         return False
     
+    def is_instruction_in_flight(self, instr_id: int) -> bool:
+        """
+        Check if an instruction is still in-flight (in ROB or RS).
+        
+        An instruction is in-flight if:
+        - It has a ROB entry that hasn't been committed yet
+        - It's in a reservation station
+        
+        args:
+            instr_id: instruction ID to check
+            
+        returns:
+            True if instruction is in-flight, False otherwise
+        """
+        # Check if instruction is in ROB
+        if self.rob.buffer.count > 0:
+            entries = self.rob.buffer.traverse()
+            for entry in entries:
+                if entry is not None and entry.instr_id == instr_id:
+                    return True  # Instruction is still in ROB (not committed)
+        
+        # Check if instruction is in any reservation station
+        for rs in self.reservation_stations.values():
+            if rs.busy and hasattr(rs, 'instruction'):
+                if isinstance(rs.instruction, Instruction):
+                    if rs.instruction.get_instr_id() == instr_id:
+                        return True  # Instruction is in a reservation station
+        
+        return False  # Instruction is not in-flight (committed or never issued)
+    
     def jump_to_index(self, target_index: int) -> bool:
         """
         Jump to a specific instruction index.
-        If the instruction at that index was already issued, skip to the next unissued one.
+        Allows re-issuing instructions that are not in-flight (e.g., for loops).
+        When jumping backwards (to a loop), we allow re-issuing even if instructions are in-flight.
         
         args:
             target_index: instruction index to jump to
@@ -274,10 +353,14 @@ class IssueUnit:
             True if index is valid, False otherwise
         """
         if 0 <= target_index < len(self._instructions):
-            # If we're jumping backwards (to an instruction that was already issued),
-            # we need to find the next unissued instruction
-            # But actually, if we flush, those instructions should be safe to re-issue
-            # So we just set the index
+            # If jumping backwards (to a loop), mark this as a jump target
+            # If jumping forwards, clear the jump marker (we're exiting the loop)
+            if target_index < self._next_index:
+                self._last_jump_index = target_index
+            elif target_index > self._next_index:
+                # Forward jump - clear loop marker
+                self._last_jump_index = None
+            # If target_index == self._next_index, it's a no-op, keep current state
             self._next_index = target_index
             return True
         return False

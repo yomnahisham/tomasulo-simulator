@@ -191,6 +191,28 @@ class ExecutionManager:
             if fu is None:
                 continue
             
+            # Check if a FU is already executing this RS entry
+            # If so, don't restart it (would reset cycles_remaining)
+            fu_already_executing = False
+            for fu_list in self.fu_pool.fu_map.values():
+                for existing_fu in fu_list:
+                    if existing_fu.rs_entry_id == rs_entry_id and existing_fu.is_busy():
+                        fu_already_executing = True
+                        break
+                if fu_already_executing:
+                    break
+            
+            # If a FU is already executing this RS, skip starting a new execution
+            if fu_already_executing:
+                continue
+            
+            # Check if RS is in EXECUTING state but no FU is executing it
+            # This can happen if FU was flushed but RS state wasn't reset
+            rs = self.tomasulo_interface.reservation_stations.get(rs_entry_id)
+            if rs and rs.is_executing():
+                # Reset RS state to allow restart
+                rs.state = None
+            
             # get operands from Part 2
             operands = self.tomasulo_interface.get_rs_operands(rs_entry)
             

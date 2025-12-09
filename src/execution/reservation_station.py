@@ -359,8 +359,9 @@ class BEQRS(ReservationStation):
         self.Vk = None
         self.Qk = None
         self.A = None
+        self.PC = None  # Instruction index (PC) for branch target computation
     
-    def push(self, instruction: Instruction, A, dest, Vj=None, Qj=None, Vk=None, Qk=None) -> None:
+    def push(self, instruction: Instruction, A, dest, Vj=None, Qj=None, Vk=None, Qk=None, PC=None) -> None:
         """
         Push a new instruction into the BEQRS
 
@@ -390,6 +391,7 @@ class BEQRS(ReservationStation):
         self.Qk = Qk
         self.A = A
         self.dest = dest
+        self.PC = PC  # Store PC (instruction index) for branch target computation
 
     def is_ready(self) -> bool:
         """
@@ -434,5 +436,6 @@ class BEQRS(ReservationStation):
         self.Vk = None
         self.Qk = None
         self.A = None  # Reset A if it exists
+        self.PC = None  # Reset PC
 
     

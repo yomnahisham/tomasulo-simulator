@@ -26,6 +26,7 @@ class TomasuloCore:
         self.rob = rob if rob is not None else ReorderBuffer()
         self.rat = rat if rat is not None else [None] * 8
         self._pending_branch_label = None  # Store label for branch jumps
+        self._pending_branch_rob_index = None  # Store ROB index of the branch that set the label (for priority)
         self._pending_branch_target = None  # Store target address for RET jumps
         self._recently_flushed_ids = []  # Track instruction IDs flushed in the last cycle
         self._flushed_rs_entry_ids = []  # Track RS entry IDs flushed in the last cycle
@@ -106,7 +107,10 @@ class TomasuloCore:
         ready_rs_entries = []
         excluded_fields = {"Op", "busy", "state"}
         for rs_name, rs in self.reservation_stations.items():
-            if rs.is_ready() and not rs.is_executing():
+            # Allow RS entries that are ready, even if they're in EXECUTING state
+            # This handles the case where FU was flushed/reset but RS state wasn't updated
+            # The execution manager will restart execution if needed
+            if rs.is_ready():
                 entry = {k: rs.__dict__[k] for k in rs.__dict__ if k not in excluded_fields}
                 entry['id'] = rs_name
                 # Convert Instruction object to dictionary format expected by ExecutionManager
@@ -255,6 +259,20 @@ class TomasuloCore:
         if rob_entry is None:
             return
 
+        # Check if this is a CALL result (dict with return_address)
+        # CALL results should only be used by RET, not forwarded to other RS entries
+        if isinstance(value, dict):
+            # Only forward to RET RS entries (they need the return_address)
+            for rs in self.reservation_stations.values():
+                if not rs.busy:
+                    continue
+                if hasattr(rs, 'Op') and rs.Op == "RET" and hasattr(rs, 'Qj') and rs.Qj == rob_index:
+                    # Extract return_address from dict for RET
+                    return_addr = value.get("return_address", 0)
+                    print(f"Forwarding to RET RS (R1): {rs}")
+                    rs.source_update(return_addr)
+            return  # Don't forward dicts to other RS entries
+
         for rs in self.reservation_stations.values():
             if not rs.busy:
                 continue
@@ -295,15 +313,55 @@ class TomasuloCore:
             Part 2 should check for misprediction and handle flush if needed
         """
         if taken:
-            flushed_ids = self.flush(rob_index)
-            # Store flushed instruction IDs for integration layer to track
-            self._recently_flushed_ids.extend([id for id in flushed_ids if id is not None])
-            # Store label for later use by integration layer (for CALL/BEQ)
-            self._pending_branch_label = label
-            # Store target address for RET (when label is None)
-            if label is None:
-                self._pending_branch_target = target
-            return target
+            # If we already have a pending branch label, check if this branch is older
+            # Older branches should take priority (they come first in program order)
+            if hasattr(self, '_pending_branch_label') and self._pending_branch_label is not None:
+                # Check if we have a pending branch ROB index
+                if hasattr(self, '_pending_branch_rob_index') and self._pending_branch_rob_index is not None:
+                    # Check which branch is older by comparing distances from ROB head
+                    # In a circular buffer, we need to check which is closer to the head
+                    head = self.rob.buffer.head
+                    max_size = self.rob.max_size
+                    
+                    # Calculate distance from head for both branches
+                    dist_current = (rob_index - head + max_size) % max_size
+                    dist_pending = (self._pending_branch_rob_index - head + max_size) % max_size
+                    
+                    # Only update if this branch is older (closer to head)
+                    if dist_current < dist_pending:
+                        # This branch is older, it should take priority
+                        # Flush the previous branch's effects first (it will be flushed by the new flush)
+                        flushed_ids = self.flush(rob_index)
+                        self._recently_flushed_ids.extend([id for id in flushed_ids if id is not None])
+                        self._pending_branch_label = label
+                        self._pending_branch_rob_index = rob_index
+                        if label is None:
+                            self._pending_branch_target = target
+                        return target
+                    else:
+                        # Previous branch is older, keep it (this branch will be flushed)
+                        return None
+                else:
+                    # No pending ROB index, store this one
+                    flushed_ids = self.flush(rob_index)
+                    self._recently_flushed_ids.extend([id for id in flushed_ids if id is not None])
+                    self._pending_branch_label = label
+                    self._pending_branch_rob_index = rob_index
+                    if label is None:
+                        self._pending_branch_target = target
+                    return target
+            else:
+                # No pending branch, store this one
+                flushed_ids = self.flush(rob_index)
+                # Store flushed instruction IDs for integration layer to track
+                self._recently_flushed_ids.extend([id for id in flushed_ids if id is not None])
+                # Store label for later use by integration layer (for CALL/BEQ)
+                self._pending_branch_label = label
+                self._pending_branch_rob_index = rob_index
+                # Store target address for RET (when label is None)
+                if label is None:
+                    self._pending_branch_target = target
+                return target
         return None
 
     def mark_rs_executing(self, rs_entry_id: str) -> None:
@@ -384,16 +442,21 @@ class TomasuloCore:
                     # If no timing entry exists yet, don't record commit (instruction hasn't executed)
             
             if oldest_entry.name in {"LOAD", "ADD", "SUB", "NAND", "MUL"}:
-                self.reg_file.write(oldest_entry.dest, oldest_entry.value)
+                # Only write if value is not None (shouldn't be None for these instructions)
+                if oldest_entry.value is not None:
+                    self.reg_file.write(oldest_entry.dest, oldest_entry.value)
                 # Clear RAT mapping for register-writing instructions
                 if oldest_entry.dest is not None:
                     self.clear_rat_mapping(oldest_entry.dest, self.rob.buffer.head)
             elif oldest_entry.name == "CALL":
                 # CALL writes return address to R1 (which is stored in dest)
-                if isinstance(oldest_entry.value, dict):
-                    self.reg_file.write(oldest_entry.dest, oldest_entry.value["return_address"])
-                else:
-                    self.reg_file.write(oldest_entry.dest, oldest_entry.value)
+                if oldest_entry.value is not None:
+                    if isinstance(oldest_entry.value, dict):
+                        return_addr = oldest_entry.value.get("return_address")
+                        if return_addr is not None:
+                            self.reg_file.write(oldest_entry.dest, return_addr)
+                    else:
+                        self.reg_file.write(oldest_entry.dest, oldest_entry.value)
                 # Clear RAT mapping for R1 (stored in dest)
                 if oldest_entry.dest is not None:
                     self.clear_rat_mapping(oldest_entry.dest, self.rob.buffer.head)
@@ -615,6 +678,16 @@ class TomasuloCore:
             elif hasattr(rs, 'Qk') and rs.Qk is not None and rs.Qk in rob_indices:
                 print(f"Flushing RS entry from RS {key} (Qk={rs.Qk} matches flushed)")
                 should_flush = True
+            # Special case: flush BEQ RS entries when jumping back (they're from previous iteration)
+            # This is needed for loops - BEQ instructions from previous iterations should be flushed
+            # When we flush ROB entries (backwards jump), also flush any BEQ RS entries that are busy
+            # because they're control flow instructions from the previous iteration
+            elif key in ['BEQ1', 'BEQ2']:
+                # If we're flushing ROB entries (backwards jump), flush all BEQ RS entries
+                # They're from previous loop iteration and should be cleared
+                if len(rob_indices) > 0:  # We're doing a flush (backwards jump)
+                    print(f"Flushing BEQ RS entry from RS {key} (backwards jump - clearing previous iteration)")
+                    should_flush = True
             
             if should_flush:
                 flushed_rs_entry_ids.append(key)  # Track this RS entry ID

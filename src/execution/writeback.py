@@ -96,11 +96,34 @@ class WriteBackStage:
                 # STORE doesn't update ROB/RAT/RS with a value, just marks completion
                 # Part 2 will handle marking STORE as ready in ROB
                 self.tomasulo_interface.update_rob_value(rob_index, None)  # None indicates STORE completion
+            elif inst_type == "BEQ":
+                # BEQ doesn't produce register values, just mark completion
+                # The branch result (dict) was already handled by notify_branch_result
+                # Part 2 will handle marking the branch as ready in ROB
+                self.tomasulo_interface.update_rob_value(rob_index, None)  # None indicates branch completion
+            elif inst_type == "CALL":
+                # CALL produces a return_address that needs to be stored in ROB
+                # The value is a dict with "return_address" key
+                # Store the dict so it can be written to R1 when committed
+                # Don't forward CALL results to RS (they're dicts, not integers)
+                self.tomasulo_interface.update_rob_value(rob_index, value)  # Store the call result dict
+                # Note: We don't call forward_to_rs for CALL because it produces a dict, not an integer
+            elif inst_type == "RET":
+                # RET doesn't produce register values, just mark completion
+                # The branch result (dict) was already handled by notify_branch_result
+                # Part 2 will handle marking the branch as ready in ROB
+                self.tomasulo_interface.update_rob_value(rob_index, None)  # None indicates branch completion
             else:
                 # for other instructions, update ROB, forward to RS, update RAT
-                self.tomasulo_interface.update_rob_value(rob_index, value)
-                self.tomasulo_interface.forward_to_rs(rob_index, value)
-                self.tomasulo_interface.update_rat(rob_index, value)
+                # Ensure value is not a dict (should be an integer)
+                if isinstance(value, dict):
+                    # If somehow a dict got through, don't forward it
+                    # This shouldn't happen for regular instructions, but handle it gracefully
+                    self.tomasulo_interface.update_rob_value(rob_index, None)
+                else:
+                    self.tomasulo_interface.update_rob_value(rob_index, value)
+                    self.tomasulo_interface.forward_to_rs(rob_index, value)
+                    self.tomasulo_interface.update_rat(rob_index, value)
             
             # record write cycle timing
             if timing_tracker:

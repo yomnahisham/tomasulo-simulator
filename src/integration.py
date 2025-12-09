@@ -72,6 +72,8 @@ class IntegratedSimulator:
         self.max_cycles = 1000
         self.initial_assembly_file = assembly_file
         self.flushed_instructions = set()  # Track instruction IDs that have been flushed
+        self._no_progress_cycles = 0  # Track cycles with no progress
+        self._last_rob_count = 0  # Track ROB count to detect progress
     
     def run(self, verbose: bool = False) -> dict:
         """
@@ -89,11 +91,15 @@ class IntegratedSimulator:
         print(f"{'='*80}\n")
         
         while self.current_cycle < self.max_cycles:
-            self.current_cycle += 1
+            # Check if simulation is complete before starting next cycle
+            if self._is_complete():
+                break
             
+            self.current_cycle += 1
+
             if verbose:
                 print(f"\n--- CYCLE {self.current_cycle} ---")
-            
+
             # Step 1: Issue next instruction (if available)
             if self.issue_unit.has_instructions():
                 issued, success = self.issue_unit.issue_next(self.current_cycle)
@@ -128,28 +134,36 @@ class IntegratedSimulator:
                     if verbose:
                         print(f"Branch taken: jumping to label '{label}' at instruction index {target_index}")
                 self.tomasulo_core._pending_branch_label = None  # Clear the pending label
+                self.tomasulo_core._pending_branch_rob_index = None  # Clear the pending ROB index
             # Handle address-based jumps (RET)
             elif hasattr(self.tomasulo_core, '_pending_branch_target') and self.tomasulo_core._pending_branch_target is not None:
                 target_index = self.tomasulo_core._pending_branch_target
-                self.issue_unit.jump_to_index(target_index)
-                if verbose:
-                    print(f"RET: jumping to return address (instruction index {target_index})")
-                self.tomasulo_core._pending_branch_target = None  # Clear the pending target
-            # Handle address-based jumps (RET)
-            elif hasattr(self.tomasulo_core, '_pending_branch_target') and self.tomasulo_core._pending_branch_target is not None:
-                target_index = self.tomasulo_core._pending_branch_target
-                self.issue_unit.jump_to_index(target_index)
-                if verbose:
-                    print(f"RET: jumping to return address (instruction index {target_index})")
+                # Only jump if target is within valid instruction range and not at the start (would restart program)
+                # Allow jumping back to a return address even if we've passed it (normal for function returns)
+                # If target is 0 or out of range, mark as complete
+                if 0 < target_index < len(self.instructions):
+                    self.issue_unit.jump_to_index(target_index)
+                    if verbose:
+                        print(f"RET: jumping to return address (instruction index {target_index})")
+                else:
+                    # Invalid return address (e.g., R1 was modified to 0), mark as past last instruction
+                    self.issue_unit._next_index = len(self.instructions)
+                    if verbose:
+                        print(f"RET: invalid return address {target_index} (R1 was modified), marking as complete")
                 self.tomasulo_core._pending_branch_target = None  # Clear the pending target
             
-            # Step 3: Commit if possible
-            committed = self.tomasulo_core.commit_rob_entry(self.current_cycle, self.timing_tracker)
-            if committed and verbose:
-                dest, value = committed
-                print(f"Committed: ROB[{dest}] = {value}")
+            # Step 3: Commit if possible (can commit multiple entries per cycle)
+            committed = None
+            while True:
+                commit_result = self.tomasulo_core.commit_rob_entry(self.current_cycle, self.timing_tracker)
+                if commit_result is None:
+                    break
+                committed = commit_result  # Track the last committed entry
+                if verbose:
+                    dest, value = commit_result
+                    print(f"Committed: ROB[{dest}] = {value}")
             
-            # Check if simulation is complete
+            # Check if simulation is complete after committing
             if self._is_complete():
                 break
         
@@ -164,11 +178,7 @@ class IntegratedSimulator:
     
     def _is_complete(self) -> bool:
         """Check if simulation is complete"""
-        # All instructions issued
-        if self.issue_unit.has_instructions():
-            return False
-        
-        # All instructions committed
+        # All instructions must be committed
         if self.tomasulo_core.rob.buffer.count > 0:
             return False
         
@@ -190,7 +200,41 @@ class IntegratedSimulator:
         if any(rs.busy for rs in self.tomasulo_core.reservation_stations.values()):
             return False
         
-        return True
+        # Check if we've passed the last instruction (RET)
+        # For loops, we need to check if we've executed past the RET instruction
+        # and all instructions are committed
+        past_last_instr = self.issue_unit._next_index >= len(self.instructions)
+        
+        # If we're past the last instruction and everything is clear, we're done
+        # This handles loops - once we've passed RET and everything is committed, we're complete
+        if past_last_instr:
+            return True
+        
+        # Also check if we can't issue more instructions and everything is committed
+        # This handles cases where we're stuck or truly done
+        # But for loops, we need to be more careful - if we're in a loop, we might have more instructions
+        # Only return True if we're not in a loop context (no pending backward jumps)
+        if not self.issue_unit.has_instructions():
+            # Check if we're in a loop (backward jump pending)
+            if hasattr(self.issue_unit, '_last_jump_index') and self.issue_unit._last_jump_index is not None:
+                # We're in a loop, don't complete yet
+                return False
+            return True
+        
+        return False
+    
+    def _check_progress(self) -> bool:
+        """Check if we're making progress (ROB count changed or instructions committed)"""
+        current_rob_count = self.tomasulo_core.rob.buffer.count
+        if current_rob_count != self._last_rob_count:
+            self._no_progress_cycles = 0
+            self._last_rob_count = current_rob_count
+            return True
+        else:
+            self._no_progress_cycles += 1
+            # If we haven't made progress for many cycles and can't issue, we might be stuck
+            # But don't auto-complete - let the user see what's happening
+            return False
     
     def print_timing_table(self):
         """Print the timing table for all instructions"""
@@ -410,11 +454,22 @@ class IntegratedSimulator:
                 self.issue_unit.jump_to_index(target_index)
                 print(f"Branch taken: jumping to label '{label}' at instruction index {target_index}")
             self.tomasulo_core._pending_branch_label = None  # Clear the pending label
+            self.tomasulo_core._pending_branch_rob_index = None  # Clear the pending ROB index
         # Handle address-based jumps (RET)
         elif hasattr(self.tomasulo_core, '_pending_branch_target') and self.tomasulo_core._pending_branch_target is not None:
             target_index = self.tomasulo_core._pending_branch_target
-            self.issue_unit.jump_to_index(target_index)
-            print(f"RET: jumping to return address (instruction index {target_index})")
+            # Only jump if target is within valid instruction range and not at the start (would restart program)
+            # Allow jumping back to a return address even if we've passed it (normal for function returns)
+            # If target is 0 or out of range, mark as complete
+            if 0 < target_index < len(self.instructions):
+                self.issue_unit.jump_to_index(target_index)
+                if verbose:
+                    print(f"RET: jumping to return address (instruction index {target_index})")
+            else:
+                # Invalid return address (e.g., R1 was modified to 0), mark as past last instruction
+                self.issue_unit._next_index = len(self.instructions)
+                if verbose:
+                    print(f"RET: invalid return address {target_index} (R1 was modified), marking as complete")
             self.tomasulo_core._pending_branch_target = None  # Clear the pending target
         
         # Step 2: Issue next instruction (if available)
@@ -447,6 +502,9 @@ class IntegratedSimulator:
             if commit_result is None:
                 break
             committed = commit_result  # Track the last committed entry
+        
+        # Check if we're making progress
+        self._check_progress()
         
         # Return updated state
         state = self.get_current_state()
