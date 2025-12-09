@@ -1,5 +1,5 @@
 """Tomasulo core tests"""
-from src.execution.tomasulo_core import TomasuloCore
+from src.interfaces.tomasulo_interface import TomasuloCore
 from src.interfaces.instruction import Instruction
 import unittest
 
