@@ -374,13 +374,27 @@ class TomasuloCore:
             
             if oldest_entry.name in {"LOAD", "ADD", "SUB", "NAND", "MUL"}:
                 self.reg_file.write(oldest_entry.dest, oldest_entry.value)
+                # Clear RAT mapping for register-writing instructions
+                if oldest_entry.dest is not None:
+                    self.clear_rat_mapping(oldest_entry.dest, self.rob.buffer.head)
             elif oldest_entry.name == "CALL":
+                # CALL writes return address to R1 (which is stored in dest)
                 if isinstance(oldest_entry.value, dict):
-                    self.reg_file.write(1, oldest_entry.value["return_address"])
+                    self.reg_file.write(oldest_entry.dest, oldest_entry.value["return_address"])
                 else:
-                    self.reg_file.write(1, oldest_entry.value)            
-
-            self.clear_rat_mapping(oldest_entry.dest, self.rob.buffer.head)
+                    self.reg_file.write(oldest_entry.dest, oldest_entry.value)
+                # Clear RAT mapping for R1 (stored in dest)
+                if oldest_entry.dest is not None:
+                    self.clear_rat_mapping(oldest_entry.dest, self.rob.buffer.head)
+            elif oldest_entry.name == "STORE":
+                # STORE doesn't write to registers, just memory (handled in writeback)
+                # No RAT mapping to clear
+                pass
+            else:
+                # For other instructions, clear RAT mapping if dest is not None
+                if oldest_entry.dest is not None:
+                    self.clear_rat_mapping(oldest_entry.dest, self.rob.buffer.head)
+            
             self.rob.pop_front()
             return oldest_entry.dest, oldest_entry.value
         return None

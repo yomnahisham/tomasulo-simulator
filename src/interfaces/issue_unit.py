@@ -200,15 +200,20 @@ class IssueUnit:
         print(rs_message)
         if not success:
             return None, False
-        success = self.rob.push(instr._name, instr._rA, instr.get_instr_id())
+        
+        # For CALL, dest should be R1 (where return address is written)
+        # For other instructions, use rA from instruction
+        dest_reg = 1 if instr._name == "CALL" else instr._rA
+        
+        success = self.rob.push(instr._name, dest_reg, instr.get_instr_id())
         if success:
             print(f"Issued instruction {instr.get_name()} to ROB index {(self.rob.buffer.tail - 1) % self.rob.max_size}")
         else:
             print(f"Failed to issue instruction {instr.get_name()}: ROB is full")
             return None, False
         rob_index = (self.rob.buffer.tail - 1) % self.rob.max_size
-        if instr._rA is not None:
-            self.rat_mapping(instr._rA, rob_index)
+        if dest_reg is not None:
+            self.rat_mapping(dest_reg, rob_index)
 
         # print(f"[Cycle {cycle}] Issued {instr.get_name()} | rA = {rA_val} rB = {rB_val} rC = {rC_val} immediate = {instr.get_immediate()} label = {instr.get_label()}")
 
