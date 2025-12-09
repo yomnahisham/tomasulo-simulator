@@ -179,7 +179,7 @@ class ReorderBuffer:
         """
         return self.buffer.peek_back()
     
-    def flush_tail(self, index: int) -> List[int]:
+    def flush_tail(self, index: int) -> Tuple[List[int], List[int], List[Optional[int]]]:
         """
         Flush the ROB from tail up to (but not including) the given index
         
@@ -187,13 +187,14 @@ class ReorderBuffer:
             index: ROB index to flush up to (this entry is kept)
             
         returns:
-            tuple of (list of flushed ROB indices, list of destination registers)
+            tuple of (list of flushed ROB indices, list of destination registers, list of instruction IDs)
         """
         rob_indices = []
         dest_regs = []
+        instr_ids = []
         # Check if queue is empty before flushing
         if self.buffer.count == 0:
-            return rob_indices, dest_regs
+            return rob_indices, dest_regs, instr_ids
         
         # Calculate the actual tail index in the circular buffer
         actual_tail_index = (self.buffer.tail - 1 + self.max_size) % self.max_size
@@ -209,6 +210,7 @@ class ReorderBuffer:
             print(f"Flushing ROB entry at index {current_index} with dest R{entry.dest if entry.dest is not None else 'None'}")
             rob_indices.append(current_index)
             dest_regs.append(entry.dest)
+            instr_ids.append(entry.instr_id)
             self.pop_back()
             
             # Update actual_tail_index after popping
@@ -217,7 +219,7 @@ class ReorderBuffer:
             else:
                 break
                 
-        return rob_indices, dest_regs
+        return rob_indices, dest_regs, instr_ids
     
     def find(self, dest: int) -> Tuple[Optional[ROB_Entry], int]: 
         """

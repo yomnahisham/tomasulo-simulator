@@ -71,6 +71,7 @@ class IntegratedSimulator:
         self.current_cycle = 0
         self.max_cycles = 1000
         self.initial_assembly_file = assembly_file
+        self.flushed_instructions = set()  # Track instruction IDs that have been flushed
     
     def run(self, verbose: bool = False) -> dict:
         """
@@ -102,7 +103,14 @@ class IntegratedSimulator:
             # Step 2: Execute one cycle
             self.exec_manager.execute_cycle(self.current_cycle)
             
-            # Step 2.5: Handle branch jumps if branch was taken
+            # Step 2.5: Track flushed instructions
+            if hasattr(self.tomasulo_core, '_recently_flushed_ids') and self.tomasulo_core._recently_flushed_ids:
+                for flushed_id in self.tomasulo_core._recently_flushed_ids:
+                    if flushed_id is not None:
+                        self.flushed_instructions.add(flushed_id)
+                self.tomasulo_core._recently_flushed_ids = []  # Clear after tracking
+            
+            # Step 2.6: Handle branch jumps if branch was taken
             if hasattr(self.tomasulo_core, '_pending_branch_label') and self.tomasulo_core._pending_branch_label:
                 label = self.tomasulo_core._pending_branch_label
                 if label in self.label_map:
@@ -263,7 +271,8 @@ class IntegratedSimulator:
                 "immediate": instr.get_immediate(),
                 "label": instr.get_label(),
                 "status": status,
-                "timing": timing
+                "timing": timing,
+                "flushed": instr_id in self.flushed_instructions
             })
         
         # Get reservation stations state
@@ -386,6 +395,13 @@ class IntegratedSimulator:
         # Step 3: Execute one cycle
         self.exec_manager.execute_cycle(self.current_cycle)
         
+        # Step 3.5: Track flushed instructions
+        if hasattr(self.tomasulo_core, '_recently_flushed_ids') and self.tomasulo_core._recently_flushed_ids:
+            for flushed_id in self.tomasulo_core._recently_flushed_ids:
+                if flushed_id is not None:
+                    self.flushed_instructions.add(flushed_id)
+            self.tomasulo_core._recently_flushed_ids = []  # Clear after tracking
+        
         # Step 4: Commit if possible (can commit multiple entries per cycle)
         committed = None
         while True:
@@ -424,6 +440,7 @@ class IntegratedSimulator:
             rob=None,
             rat=None
         )
+        self.flushed_instructions = set()  # Reset flushed instructions tracking
         
         # Recreate issue unit
         self.issue_unit = IssueUnit(

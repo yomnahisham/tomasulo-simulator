@@ -26,6 +26,7 @@ class TomasuloCore:
         self.rob = rob if rob is not None else ReorderBuffer()
         self.rat = rat if rat is not None else [None] * 8
         self._pending_branch_label = None  # Store label for branch jumps
+        self._recently_flushed_ids = []  # Track instruction IDs flushed in the last cycle
 
     
     def rat_mapping(self, reg: int, rob_index: int) -> None:
@@ -277,12 +278,17 @@ class TomasuloCore:
             target: actual target address
             label: label name for the branch target (optional)
             
+        returns:
+            target address if taken, None otherwise
+            
         note:
             this function is to be implemented by Part 2 (tomasulo core)
             Part 2 should check for misprediction and handle flush if needed
         """
         if taken:
-            self.flush(rob_index)
+            flushed_ids = self.flush(rob_index)
+            # Store flushed instruction IDs for integration layer to track
+            self._recently_flushed_ids.extend([id for id in flushed_ids if id is not None])
             # Store label for later use by integration layer
             self._pending_branch_label = label
             return target
@@ -349,19 +355,21 @@ class TomasuloCore:
             # If ROB entry is ready, it means the instruction has finished and been written back
             if timing_tracker is not None and cycle is not None and oldest_entry.instr_id is not None:
                 timing = timing_tracker.get_timing(oldest_entry.instr_id)
-                if timing:
-                    write = timing.get("write")
-                    existing_commit = timing.get("commit")
-                    # Only record commit if:
-                    # 1. Not already committed, AND
-                    # 2. Either write time is not recorded yet (same cycle), or commit is after write
-                    if existing_commit is None:
-                        if write is None or cycle >= write:
-                            timing_tracker.record_commit(oldest_entry.instr_id, cycle)
-                    elif cycle > existing_commit:
-                        # Update commit time if this is a later cycle (shouldn't happen, but handle it)
-                        if write is None or cycle >= write:
-                            timing_tracker.record_commit(oldest_entry.instr_id, cycle)
+                existing_commit = timing.get("commit") if timing else None
+                # Only record commit if not already committed
+                if existing_commit is None:
+                    if timing:
+                        write = timing.get("write")
+                        finish_exec = timing.get("finish_exec")
+                        # Only record commit if instruction has finished execution and been written back
+                        # This ensures commit happens after write (commit >= write)
+                        if finish_exec is not None and write is not None:
+                            # Commit must happen at or after write time
+                            if cycle >= write:
+                                timing_tracker.record_commit(oldest_entry.instr_id, cycle)
+                        # If finish_exec or write is None, don't record commit yet
+                        # The instruction hasn't completed execution/writeback
+                    # If no timing entry exists yet, don't record commit (instruction hasn't executed)
             
             if oldest_entry.name in {"LOAD", "ADD", "SUB", "NAND", "MUL"}:
                 self.reg_file.write(oldest_entry.dest, oldest_entry.value)
@@ -547,11 +555,14 @@ class TomasuloCore:
         self.rat_mapping(instruction._rA, rob_index)
         return success
     
-    def flush(self, index: int) -> None:
+    def flush(self, index: int) -> List[Optional[int]]:
         """
         flush the core state (ROB, RAT, RS)
+        
+        returns:
+            list of instruction IDs that were flushed
         """
-        rob_indices, dest_regs = self.rob.flush_tail(index) # flush ROB
+        rob_indices, dest_regs, instr_ids = self.rob.flush_tail(index) # flush ROB
         print(rob_indices, dest_regs)
 
         # Flush RAT - clear mappings to flushed ROB indices
@@ -585,6 +596,8 @@ class TomasuloCore:
                     rs.state = None
                 if hasattr(rs, 'dest'):
                     rs.dest = None
+        
+        return instr_ids
             
     
 

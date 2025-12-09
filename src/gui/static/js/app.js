@@ -207,8 +207,11 @@ function updateInstructions(state) {
         const isActive = instr.status === 'executing' || 
                         (instr.status === 'issued' && currentState?.last_issued === name);
 
+        const isFlushed = instr.flushed === true;
+        const strikethroughClass = isFlushed ? 'line-through opacity-60' : '';
+
         item.innerHTML = `
-            <div class="flex items-center">
+            <div class="flex items-center ${strikethroughClass}">
                 ${breakpointIcon}
                 <span class="text-gray-500 font-semibold text-xs mr-2">#${instr.id}</span>
                 <span class="font-mono mr-2 font-semibold">${name}</span>
@@ -509,6 +512,8 @@ function updateTimingTable(state) {
         row.id = `timing-${instr.id}`;
 
         const timing = instr.timing || {};
+        const isFlushed = instr.flushed === true;
+        const strikethroughClass = isFlushed ? 'line-through opacity-60' : '';
 
         const formatCycle = (cycle) => {
             if (cycle !== null && cycle !== undefined) {
@@ -518,13 +523,13 @@ function updateTimingTable(state) {
         };
 
         row.innerHTML = `
-            <td class="px-2 py-2 font-bold text-xs">${instr.id}</td>
-            <td class="px-2 py-2 font-semibold font-mono text-xs">${instr.name}</td>
-            <td class="px-2 py-2 text-center">${formatCycle(timing.issue)}</td>
-            <td class="px-2 py-2 text-center">${formatCycle(timing.start_exec)}</td>
-            <td class="px-2 py-2 text-center">${formatCycle(timing.finish_exec)}</td>
-            <td class="px-2 py-2 text-center">${formatCycle(timing.write)}</td>
-            <td class="px-2 py-2 text-center">${formatCycle(timing.commit)}</td>
+            <td class="px-2 py-2 font-bold text-xs ${strikethroughClass}">${instr.id}</td>
+            <td class="px-2 py-2 font-semibold font-mono text-xs ${strikethroughClass}">${instr.name}</td>
+            <td class="px-2 py-2 text-center ${strikethroughClass}">${formatCycle(timing.issue)}</td>
+            <td class="px-2 py-2 text-center ${strikethroughClass}">${formatCycle(timing.start_exec)}</td>
+            <td class="px-2 py-2 text-center ${strikethroughClass}">${formatCycle(timing.finish_exec)}</td>
+            <td class="px-2 py-2 text-center ${strikethroughClass}">${formatCycle(timing.write)}</td>
+            <td class="px-2 py-2 text-center ${strikethroughClass}">${formatCycle(timing.commit)}</td>
         `;
 
         tbody.appendChild(row);
