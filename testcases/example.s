@@ -18,14 +18,12 @@ STORE R4, 4(R0)    # memory[4] = R4
 # Conditional branch
 BEQ R1, R2, LABEL1 # Branch if R1 == R2
 
-# Function call
-CALL FUNCTION       # Call a function
+#More operations
+SUB R6, R3, R2      # R6 = R3 - R2 (depends on R3 and R2)
+LABEL1: 
+    ADD R7, R6, R1  # R7 = R6 + R1 (depends on R6 and R1)
 
 # Return from function
 RET                 # Return from function
-
-LABEL1:
-# Target of branch (if taken)
-ADD R6, R1, R2      # R6 = R1 + R2
 
 
