@@ -7,8 +7,10 @@ class TestReservationStation(unittest.TestCase):
 
     def test_load_rs(self):
         """Test Load Reservation Station"""
+        from src.interfaces.instruction import Instruction
         load_rs = LoadRS()
-        load_rs.push(instruction="LOAD R1, 0(R2)", A=100, Vj=5)
+        instr = Instruction(name="LOAD", rA=1, rB=2, immediate=0)
+        load_rs.push(instruction=instr, A=100, dest=0, Vj=5)
         self.assertTrue(load_rs.is_ready())
         self.assertTrue(load_rs.is_busy())
         self.assertEqual(load_rs.A, 100)
@@ -18,8 +20,10 @@ class TestReservationStation(unittest.TestCase):
 
     def test_store_rs(self):
         """Test Store Reservation Station"""
+        from src.interfaces.instruction import Instruction
         store_rs = StoreRS()
-        store_rs.push(instruction="STORE R1, 0(R2)", A=200, Vj=10, Qk=42)
+        instr = Instruction(name="STORE", rA=1, rB=2, immediate=0)
+        store_rs.push(instruction=instr, A=200, dest=0, Vj=10, Qk=42)
         self.assertFalse(store_rs.is_ready())
         self.assertTrue(store_rs.is_busy())
         self.assertEqual(store_rs.A, 200)
@@ -30,8 +34,10 @@ class TestReservationStation(unittest.TestCase):
 
     def test_alurs(self):
         """Test ALU Reservation Station"""
+        from src.interfaces.instruction import Instruction
         alu_rs = ALURS()
-        alu_rs.push(instruction="ADD R1, R2, R3", Op="ADD", Qj=5, Qk=3)
+        instr = Instruction(name="ADD", rA=1, rB=2, rC=3)
+        alu_rs.push(instruction=instr, Op="ADD", dest=0, Qj=5, Qk=3)
         self.assertTrue(alu_rs.is_busy())
         self.assertEqual(alu_rs.Vj, None)
         self.assertEqual(alu_rs.Vk, None)
@@ -43,10 +49,11 @@ class TestReservationStation(unittest.TestCase):
 
     def test_callrs(self):
         """Test Call/Return Reservation Station"""
+        from src.interfaces.instruction import Instruction
         call_rs = CALLRS()
-        call_rs.push(instruction="CALL func", Op="CALL", PC=400, A=20)
+        instr = Instruction(name="CALL", label="func", immediate=20)
+        call_rs.push(instruction=instr, Op="CALL", dest=0, A=20)
         self.assertTrue(call_rs.is_busy())
-        self.assertEqual(call_rs.PC, 400)
         self.assertEqual(call_rs.A, 20)
         call_rs.pop()
         self.assertFalse(call_rs.is_busy())

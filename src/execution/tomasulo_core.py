@@ -506,6 +506,4 @@ if __name__ == "__main__":
     # core.rob.print()
     # core.print_rat()
     # core.print_rs()
-    
-    
 

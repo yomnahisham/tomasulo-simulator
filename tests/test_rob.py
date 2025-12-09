@@ -7,7 +7,7 @@ class TestReorderBuffer(unittest.TestCase):
 
     def test_push_and_pop(self):
         """Test pushing and popping ROB entries"""
-        rob = ReorderBuffer(size=4)
+        rob = ReorderBuffer(max_size=4)
         rob.push(type='ALU', dest=1)
         rob.push(type='LOAD', dest=2)
         self.assertFalse(rob.is_full())
@@ -15,17 +15,17 @@ class TestReorderBuffer(unittest.TestCase):
         rob.push(type='BEQ', dest=4)
         self.assertTrue(rob.is_full())
         
-        entry = rob.pop()
-        self.assertEqual(entry.type, 'ALU')
+        entry = rob.pop_front()
+        self.assertEqual(entry.name, 'ALU')
         self.assertEqual(entry.dest, 1)
         self.assertFalse(rob.is_full())
         rob.push(type='CALL', dest=5)
-        entry = rob.pop()
-        self.assertEqual(entry.type, 'LOAD')
+        entry = rob.pop_front()
+        self.assertEqual(entry.name, 'LOAD')
 
     def test_update_entry(self):
         """Test updating ROB entry"""
-        rob = ReorderBuffer(size=2)
+        rob = ReorderBuffer(max_size=2)
         rob.push(type='ALU', dest=1)
         rob.push(type='LOAD', dest=2)
         
