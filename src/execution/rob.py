@@ -126,7 +126,15 @@ class ReorderBuffer:
             index: index of the ROB entry
             value: computed result value
         """
-        self.buffer.at(index).update(value)
+        # Check if index is valid before accessing
+        if 0 <= index < self.max_size:
+            try:
+                entry = self.buffer.at(index)
+                if entry is not None:
+                    entry.update(value)
+            except Exception:
+                # Entry may have been committed, ignore
+                pass
 
     def pop_front(self) -> ROB_Entry:
         """

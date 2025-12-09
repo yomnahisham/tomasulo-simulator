@@ -175,8 +175,8 @@ class LoadFU(FunctionalUnit):
         
         # first 2 cycles: address calculation
         if self.address_phase and self.cycles_remaining == 4:
-            rB_val = self.operands.get("Vj", 0)
-            offset = self.operands.get("immediate", 0)
+            rB_val = self.operands.get("Vj", 0) or 0
+            offset = self.operands.get("immediate", 0) or 0
             self.computed_address = (rB_val + offset) & 0xFFFF
             self.address_phase = False
         
@@ -223,8 +223,8 @@ class StoreFU(FunctionalUnit):
         
         # first 2 cycles: address calculation
         if self.address_phase and self.cycles_remaining == 4:
-            rB_val = self.operands.get("Vk", 0)
-            offset = self.operands.get("immediate", 0)
+            rB_val = self.operands.get("Vk", 0) or 0
+            offset = self.operands.get("immediate", 0) or 0
             self.computed_address = (rB_val + offset) & 0xFFFF
             self.address_phase = False
         

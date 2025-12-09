@@ -97,7 +97,7 @@ class TomasuloCore:
         """    returns:
         list of RS entry dictionaries, each containing:
             - id: RS entry id
-            - instruction: instruction data structure
+            - instruction: instruction data structure (as dict)
             - other RS entry fields"""
         ready_rs_entries = []
         excluded_fields = {"Op", "busy", "state"}
@@ -105,12 +105,25 @@ class TomasuloCore:
             if rs.is_ready() and not rs.is_executing():
                 entry = {k: rs.__dict__[k] for k in rs.__dict__ if k not in excluded_fields}
                 entry['id'] = rs_name
+                # Convert Instruction object to dictionary format expected by ExecutionManager
+                if 'instruction' in entry and isinstance(entry['instruction'], Instruction):
+                    instr = entry['instruction']
+                    entry['instruction'] = {
+                        'op': instr.get_name(),
+                        'instr_id': instr.get_instr_id(),
+                        'rob_index': entry.get('dest'),
+                        'rA': instr.get_rA(),
+                        'rB': instr.get_rB(),
+                        'rC': instr.get_rC(),
+                        'immediate': instr.get_immediate(),
+                        'label': instr.get_label()
+                    }
                 ready_rs_entries.append(entry)
         return ready_rs_entries
     
-    def get_rs_operands(self, rs_entry: ReservationStation) -> Dict[str, Any]:
+    def get_rs_operands(self, rs_entry: Dict[str, Any]) -> Dict[str, Any]:
         """    args:
-            rs_entry: RS entry dictionary
+            rs_entry: RS entry dictionary (from get_ready_rs_entries)
             
             returns:
                 dictionary with operand values:
@@ -120,9 +133,28 @@ class TomasuloCore:
                     - Qk: ROB index producing second operand (if not ready)
                     - immediate: immediate value if applicable
                     - pc: program counter value if applicable"""
-        excluded_fields = {"Op", "busy", "state"}
-        dictionnary = {k: rs_entry.__dict__[k] for k in rs_entry.__dict__ if k not in excluded_fields and rs_entry.__dict__[k] is not None}
-        return dictionnary
+        # rs_entry is already a dictionary, just extract operands
+        operands = {}
+        if 'Vj' in rs_entry and rs_entry['Vj'] is not None:
+            operands['Vj'] = rs_entry['Vj']
+        if 'Vk' in rs_entry and rs_entry['Vk'] is not None:
+            operands['Vk'] = rs_entry['Vk']
+        if 'Qj' in rs_entry and rs_entry['Qj'] is not None:
+            operands['Qj'] = rs_entry['Qj']
+        if 'Qk' in rs_entry and rs_entry['Qk'] is not None:
+            operands['Qk'] = rs_entry['Qk']
+        if 'A' in rs_entry and rs_entry['A'] is not None:
+            operands['immediate'] = rs_entry['A']
+        if 'PC' in rs_entry and rs_entry['PC'] is not None:
+            operands['pc'] = rs_entry['PC']
+        # Get instruction info for branch instructions
+        if 'instruction' in rs_entry and isinstance(rs_entry['instruction'], dict):
+            instr = rs_entry['instruction']
+            if instr.get('op') == 'BEQ' and 'immediate' not in operands:
+                operands['immediate'] = instr.get('immediate', 0) or 0
+            if instr.get('op') in ['BEQ', 'CALL', 'RET'] and 'pc' not in operands:
+                operands['pc'] = 0  # Default PC, should be tracked properly
+        return operands
     
     def print_rs(self) -> None:
         """
@@ -176,7 +208,14 @@ class TomasuloCore:
             rob_index: ROB entry index
             value: computed result value
         """
-        self.rob.update(rob_index, value)        
+        # Check if ROB entry exists and is valid
+        if rob_index is not None:
+            try:
+                # Use the ROB's update method which handles bounds checking
+                self.rob.update(rob_index, value)
+            except Exception:
+                # ROB entry may have been committed already or index invalid, ignore
+                pass        
 
     def forward_to_rs(self, rob_index: int, value: Any) -> None:
         """

@@ -37,6 +37,18 @@ class Memory:
         Return the full memory (for debugging purposes)
         """
         return self._memory
+    
+    def read_memory(self, address):
+        """
+        Alias for read() to match ExecutionManager interface
+        """
+        return self.read(address)
+    
+    def write_memory(self, address, value):
+        """
+        Alias for write() to match ExecutionManager interface
+        """
+        self.write(address, value)
 
-     
+    
 

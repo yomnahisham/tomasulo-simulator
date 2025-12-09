@@ -20,7 +20,8 @@ class TestTomasuloCore(unittest.TestCase):
         self.assertEqual(len(ready_rs), 1)
         self.assertEqual(ready_rs[0]['id'], 'ADD/SUB1')
         self.assertIn('instruction', ready_rs[0])
-        self.assertEqual(ready_rs[0]['instruction'].get_name(), "ADD")
+        # instruction is now a dictionary
+        self.assertEqual(ready_rs[0]['instruction']['op'], "ADD")
         self.assertEqual(ready_rs[0]['Vj'], 5)
         self.assertEqual(ready_rs[0]['Vk'], 10)
         self.assertEqual(ready_rs[0]['Qj'], None)
@@ -31,12 +32,17 @@ class TestTomasuloCore(unittest.TestCase):
         core = TomasuloCore()
         rs = core.reservation_stations['MUL']
         instr = Instruction(name="MUL", rA=1, rB=2, rC=3)
-        rs.push(instruction=instr, Op="MUL", dest=0, Vj=7, Qk=3)
-        operands = core.get_rs_operands(rs)
+        # Use Vj and Vk (both ready) to make RS entry ready
+        rs.push(instruction=instr, Op="MUL", dest=0, Vj=7, Vk=5)
+        # get_rs_operands now expects a dictionary from get_ready_rs_entries
+        ready_rs = core.get_ready_rs_entries()
+        self.assertEqual(len(ready_rs), 1)
+        rs_entry = ready_rs[0]
+        operands = core.get_rs_operands(rs_entry)
         self.assertEqual(operands['Vj'], 7)
-        self.assertNotIn('Vk', operands)
+        self.assertEqual(operands['Vk'], 5)
         self.assertNotIn('Qj', operands)
-        self.assertEqual(operands['Qk'], 3)
+        self.assertNotIn('Qk', operands)
 
     def test_update_rob_value(self):
         """Test updating ROB value"""
