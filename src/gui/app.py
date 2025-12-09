@@ -141,7 +141,7 @@ async def step_cycle():
     
     # Also check if any instruction being executed/committed is at a breakpoint
     for instr in new_state.get("instructions", []):
-        if instr.get("id") in breakpoints and instr.get("status") in ["executing", "completed", "committed"]:
+        if instr.get("id") in breakpoints and instr.get("status") in ["executing", "write-back", "commit"]:
             hit_breakpoint = True
             break
     

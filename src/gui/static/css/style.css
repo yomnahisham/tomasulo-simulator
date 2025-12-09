@@ -33,12 +33,12 @@
     background-color: #fffbeb;
 }
 
-.instruction-item.completed {
+.instruction-item.write-back {
     border-left-color: #10b981;
     background-color: #ecfdf5;
 }
 
-.instruction-item.committed {
+.instruction-item.commit {
     border-left-color: #059669;
     background-color: #d1fae5;
 }

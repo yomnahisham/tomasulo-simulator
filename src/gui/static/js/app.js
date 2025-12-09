@@ -142,20 +142,20 @@ function updateCurrentActivity(state) {
         .map(instr => `#${instr.id}`)
         .join(', ') || '—';
     
-    const completed = state.instructions
-        .filter(instr => instr.status === 'completed' || instr.status === 'finished')
+    const writeback = state.instructions
+        .filter(instr => instr.status === 'write-back')
         .map(instr => `#${instr.id}`)
         .join(', ') || '—';
 
     // Update activity display
     const issuedEl = document.getElementById('activity-issued');
     const executingEl = document.getElementById('activity-executing');
-    const completedEl = document.getElementById('activity-completed');
+    const writebackEl = document.getElementById('activity-writeback');
     const committedEl = document.getElementById('activity-committed');
-
+    
     if (issuedEl) issuedEl.textContent = issued;
     if (executingEl) executingEl.textContent = executing;
-    if (completedEl) completedEl.textContent = completed;
+    if (writebackEl) writebackEl.textContent = writeback;
     if (committedEl) committedEl.textContent = committed;
 }
 
@@ -194,8 +194,8 @@ function updateInstructions(state) {
             'pending': 'Pending',
             'issued': 'Issued',
             'executing': 'Executing',
-            'completed': 'Completed',
-            'committed': 'Committed'
+            'write-back': 'Write-back',
+            'commit': 'Commit'
         };
 
         const hasBreakpoint = breakpoints.has(instr.id);
@@ -216,8 +216,8 @@ function updateInstructions(state) {
                 <span class="ml-auto text-xs px-2.5 py-1 rounded font-semibold ${
                     instr.status === 'executing' ? 'bg-amber-100 text-amber-800' :
                     instr.status === 'issued' ? 'bg-blue-100 text-blue-800' :
-                    instr.status === 'completed' || instr.status === 'finished' ? 'bg-green-100 text-green-800' :
-                    instr.status === 'committed' ? 'bg-emerald-100 text-emerald-800' :
+                    instr.status === 'write-back' ? 'bg-green-100 text-green-800' :
+                    instr.status === 'commit' ? 'bg-emerald-100 text-emerald-800' :
                     'bg-gray-200 text-gray-700'
                 }">${statusText[instr.status] || instr.status}</span>
             </div>
@@ -271,7 +271,7 @@ function updateReservationStations(state) {
             if (rs.Qk !== null && rs.Qk !== undefined) details.push(`<div class="mb-1"><span class="font-semibold">Qk:</span> <span class="font-mono text-amber-600">ROB[${rs.Qk}]</span></div>`);
             if (rs.A !== null && rs.A !== undefined) details.push(`<div class="mb-1"><span class="font-semibold">A:</span> <span class="font-mono">${rs.A}</span></div>`);
 
-            const statusText = stateClass === 'executing' ? 'EXECUTING' : stateClass === 'completed' ? 'READY' : 'BUSY';
+            const statusText = stateClass === 'executing' ? 'EXECUTING' : stateClass === 'write-back' ? 'READY' : 'BUSY';
 
             card.innerHTML = `
                 <div class="font-bold text-xs mb-2 font-mono">${rsName}</div>

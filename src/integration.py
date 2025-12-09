@@ -214,17 +214,20 @@ class IntegratedSimulator:
             timing = timing_info.get(instr_id, {})
             
             # Determine instruction status
-            # For educational clarity: show "issued" in the cycle when both issue and 
-            # start_exec happen, then "executing" in subsequent cycles
+            # Stages: pending -> issued -> executing -> write-back -> commit
             issue_cycle = timing.get("issue")
             start_exec_cycle = timing.get("start_exec")
+            finish_exec_cycle = timing.get("finish_exec")
+            write_cycle = timing.get("write")
+            commit_cycle = timing.get("commit")
             
-            if timing.get("commit") is not None:
-                status = "committed"
-            elif timing.get("write") is not None:
-                status = "completed"
-            elif timing.get("finish_exec") is not None:
-                status = "finished"
+            if commit_cycle is not None:
+                status = "commit"
+            elif write_cycle is not None:
+                status = "write-back"
+            elif finish_exec_cycle is not None:
+                # Finished execution but not yet written back
+                status = "executing"  # Still in execution phase until write-back
             elif start_exec_cycle is not None:
                 # If both issue and start_exec happened in the same cycle, show "issued" 
                 # only in that cycle, then "executing" in subsequent cycles
@@ -235,7 +238,7 @@ class IntegratedSimulator:
                         status = "executing"
                 else:
                     status = "executing"
-            elif timing.get("issue") is not None:
+            elif issue_cycle is not None:
                 status = "issued"
             else:
                 status = "pending"
