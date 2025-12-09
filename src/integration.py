@@ -463,13 +463,11 @@ class IntegratedSimulator:
             # If target is 0 or out of range, mark as complete
             if 0 < target_index < len(self.instructions):
                 self.issue_unit.jump_to_index(target_index)
-                if verbose:
-                    print(f"RET: jumping to return address (instruction index {target_index})")
+                print(f"RET: jumping to return address (instruction index {target_index})")
             else:
                 # Invalid return address (e.g., R1 was modified to 0), mark as past last instruction
                 self.issue_unit._next_index = len(self.instructions)
-                if verbose:
-                    print(f"RET: invalid return address {target_index} (R1 was modified), marking as complete")
+                print(f"RET: invalid return address {target_index} (R1 was modified), marking as complete")
             self.tomasulo_core._pending_branch_target = None  # Clear the pending target
         
         # Step 2: Issue next instruction (if available)
