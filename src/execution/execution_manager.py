@@ -97,11 +97,15 @@ class ExecutionManager:
                 operand_a, operand_b, offset, pc
             )
             
+            # Get label from instruction for branch target resolution
+            branch_label = instruction.get("label")
+            
             # notify Part 2 of branch result
             self.tomasulo_interface.notify_branch_result(
                 rob_index,
                 branch_result["taken"],
-                branch_result["target"]
+                branch_result["target"],
+                branch_label
             )
             
             # result for BEQ is the branch outcome info
@@ -113,11 +117,15 @@ class ExecutionManager:
                 label_offset = fu.operands.get("immediate", 0)
                 pc = fu.operands.get("pc", 0)
                 call_result = self.branch_evaluator.evaluate_call(label_offset, pc)
+                # Get label from instruction for CALL target resolution
+                call_label = instruction.get("label")
+                
                 # notify Part 2 of CALL target (unconditional branch)
                 self.tomasulo_interface.notify_branch_result(
                     rob_index,
                     True,  # CALL is always taken
-                    call_result["target"]
+                    call_result["target"],
+                    call_label
                 )
                 result = call_result
             elif inst_type == "RET":

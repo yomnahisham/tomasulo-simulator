@@ -25,6 +25,7 @@ class TomasuloCore:
         }
         self.rob = rob if rob is not None else ReorderBuffer()
         self.rat = rat if rat is not None else [None] * 8
+        self._pending_branch_label = None  # Store label for branch jumps
 
     
     def rat_mapping(self, reg: int, rob_index: int) -> None:
@@ -266,7 +267,7 @@ class TomasuloCore:
                     print(f"Forwarding to RS source2: {rs}")
                     rs.source2_update(value)
 
-    def notify_branch_result(self, rob_index: int, taken: bool, target: int) -> int:
+    def notify_branch_result(self, rob_index: int, taken: bool, target: int, label: str = None) -> int:
         """
         notify tomasulo core of branch outcome for misprediction handling
         
@@ -274,6 +275,7 @@ class TomasuloCore:
             rob_index: ROB index of the branch instruction
             taken: whether branch was actually taken
             target: actual target address
+            label: label name for the branch target (optional)
             
         note:
             this function is to be implemented by Part 2 (tomasulo core)
@@ -281,6 +283,8 @@ class TomasuloCore:
         """
         if taken:
             self.flush(rob_index)
+            # Store label for later use by integration layer
+            self._pending_branch_label = label
             return target
         return None
 
@@ -309,11 +313,15 @@ class TomasuloCore:
         """
         return self.rob.buffer.head
     
-    def commit_rob_entry(self) -> Optional[Any]:
+    def commit_rob_entry(self, cycle: int = None, timing_tracker = None) -> Optional[Any]:
         """
         updates the register file / memory with the value of the oldest ROB entry if ready
         clears RAT mapping for the committed entry
         removes the committed entry from the ROB
+        
+        args:
+            cycle: current cycle number for commit timing (optional)
+            timing_tracker: timing tracker to record commit timing (optional)
         
         returns:
             committed ROB entry value, or None if not ready
@@ -327,6 +335,10 @@ class TomasuloCore:
             return None
         
         if oldest_entry.ready:
+            # Record commit timing if timing_tracker and cycle are provided
+            if timing_tracker is not None and cycle is not None and oldest_entry.instr_id is not None:
+                timing_tracker.record_commit(oldest_entry.instr_id, cycle)
+            
             if oldest_entry.name in {"LOAD", "ADD", "SUB", "NAND", "MUL"}:
                 self.reg_file.write(oldest_entry.dest, oldest_entry.value)
             elif oldest_entry.name == "CALL":
@@ -501,7 +513,7 @@ class TomasuloCore:
         print(rs_message)
         if not success:
             return False
-        success = self.rob.push(instruction._name, instruction._rA)
+        success = self.rob.push(instruction._name, instruction._rA, instruction.get_instr_id())
         if success:
             print(f"Issued instruction {instruction.get_name()} to ROB index {(self.rob.buffer.tail - 1) % self.rob.max_size}")
         else:
@@ -518,15 +530,37 @@ class TomasuloCore:
         rob_indices, dest_regs = self.rob.flush_tail(index) # flush ROB
         print(rob_indices, dest_regs)
 
+        # Flush RAT - clear mappings to flushed ROB indices
         for i, reg in enumerate(self.rat): # flush RAT
             if reg in rob_indices:
                 print(f"Flushing RAT mapping: R{i} from ROB[{reg}]")
                 self.rat[i] = None
         
+        # Flush RS - clear entries that reference flushed ROB indices
         for key, rs in self.reservation_stations.items(): # flush RS
+            if not rs.busy:
+                continue
+            
+            # Check if this RS entry's dest is in flushed indices
+            should_flush = False
             if rs.dest in rob_indices:
-                print(f"Flushing RS entry: {rs.dest} from RS {key}")
+                print(f"Flushing RS entry: {rs.dest} from RS {key} (dest matches)")
+                should_flush = True
+            # Also check if RS is waiting on flushed ROB indices (Qj or Qk)
+            elif hasattr(rs, 'Qj') and rs.Qj is not None and rs.Qj in rob_indices:
+                print(f"Flushing RS entry from RS {key} (Qj={rs.Qj} matches flushed)")
+                should_flush = True
+            elif hasattr(rs, 'Qk') and rs.Qk is not None and rs.Qk in rob_indices:
+                print(f"Flushing RS entry from RS {key} (Qk={rs.Qk} matches flushed)")
+                should_flush = True
+            
+            if should_flush:
                 rs.pop()
+                # Make sure state is also reset
+                if hasattr(rs, 'state'):
+                    rs.state = None
+                if hasattr(rs, 'dest'):
+                    rs.dest = None
             
     
 

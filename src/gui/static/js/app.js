@@ -306,7 +306,31 @@ function updateROB(state) {
         robEntry.className = `rob-entry ${entry.ready ? 'ready' : 'not-ready'} ${entry.is_head ? 'head' : ''}`;
         robEntry.id = `rob-entry-${entry.index}`;
 
-        const valueStr = entry.value !== null && entry.value !== undefined ? entry.value : '---';
+        // Handle value display - show value if it's a number (including 0) or if it's explicitly set
+        let valueStr = '---';
+        // Special handling for STORE instructions - they don't produce register values
+        if (entry.name === 'STORE' && entry.ready) {
+            valueStr = 'Complete';
+        } else if (entry.value !== null && entry.value !== undefined) {
+            if (typeof entry.value === 'object') {
+                // Handle dictionary/object values (e.g., CALL, BEQ results)
+                if (entry.value.target !== undefined) {
+                    valueStr = `target:${entry.value.target}`;
+                    if (entry.value.return_address !== undefined) {
+                        valueStr += `, ret:${entry.value.return_address}`;
+                    }
+                    if (entry.value.taken !== undefined) {
+                        valueStr += `, ${entry.value.taken ? 'taken' : 'not taken'}`;
+                    }
+                } else {
+                    // Generic object - show JSON representation
+                    valueStr = JSON.stringify(entry.value);
+                }
+            } else {
+                // Primitive value (number, string, etc.)
+                valueStr = String(entry.value);
+            }
+        }
         const destStr = entry.dest !== null && entry.dest !== undefined ? `R${entry.dest}` : '---';
         const readyBadge = entry.ready
             ? '<span class="text-xs text-green-600 font-semibold">Ready</span>'

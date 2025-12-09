@@ -7,6 +7,7 @@ class Parser:
     def __init__(self):
         self._filepath = None
         self._instructions = []
+        self._label_map = {}  # Maps label name to instruction index
 
     def parse(self, filepath):
         """
@@ -35,8 +36,11 @@ class Parser:
             if not line or line.startswith("#"): # skip empty or comment lines
                 continue
             
-            # Skip label definitions (lines ending with ':')
+            # Handle label definitions (lines ending with ':')
             if line.endswith(':'):
+                label_name = line[:-1].strip()  # Remove the ':'
+                # Map this label to the next instruction index (the instruction after this label)
+                self._label_map[label_name] = len(self._instructions)
                 continue
 
             try:
@@ -59,7 +63,12 @@ class Parser:
                 f"rA = {instr.get_rA()} | rB = {instr.get_rB()} | rC = {instr.get_rC()} | "
                 f"imm = {instr.get_immediate()} | label = {instr.get_label()} | "
             )
+        print(f"\nLabel Map: {self._label_map}")
         return self._instructions
+    
+    def get_label_map(self):
+        """Get the label to instruction index mapping."""
+        return self._label_map.copy()
 
     def _parse_line(self, line, line_num=None):
         """

@@ -35,6 +35,7 @@ class IntegratedSimulator:
         # Parse assembly file
         parser = Parser()
         self.instructions = parser.parse(assembly_file)
+        self.label_map = parser.get_label_map()  # Store label to instruction index mapping
         
         # Create core components
         self.register_file = RegisterFile()
@@ -101,8 +102,18 @@ class IntegratedSimulator:
             # Step 2: Execute one cycle
             self.exec_manager.execute_cycle(self.current_cycle)
             
+            # Step 2.5: Handle branch jumps if branch was taken
+            if hasattr(self.tomasulo_core, '_pending_branch_label') and self.tomasulo_core._pending_branch_label:
+                label = self.tomasulo_core._pending_branch_label
+                if label in self.label_map:
+                    target_index = self.label_map[label]
+                    self.issue_unit.jump_to_index(target_index)
+                    if verbose:
+                        print(f"Branch taken: jumping to label '{label}' at instruction index {target_index}")
+                self.tomasulo_core._pending_branch_label = None  # Clear the pending label
+            
             # Step 3: Commit if possible
-            committed = self.tomasulo_core.commit_rob_entry()
+            committed = self.tomasulo_core.commit_rob_entry(self.current_cycle, self.timing_tracker)
             if committed and verbose:
                 dest, value = committed
                 print(f"Committed: ROB[{dest}] = {value}")
@@ -165,11 +176,11 @@ class IntegratedSimulator:
             instr = next((i for i in self.instructions if i.get_instr_id() == instr_id), None)
             name = instr.get_name() if instr else "UNKNOWN"
             
-            issue = timing.get("issue", "-")
-            start_exec = timing.get("start_exec", "-")
-            finish_exec = timing.get("finish_exec", "-")
-            write = timing.get("write", "-")
-            commit = timing.get("commit", "-")
+            issue = timing.get("issue", "-") if timing.get("issue") is not None else "-"
+            start_exec = timing.get("start_exec", "-") if timing.get("start_exec") is not None else "-"
+            finish_exec = timing.get("finish_exec", "-") if timing.get("finish_exec") is not None else "-"
+            write = timing.get("write", "-") if timing.get("write") is not None else "-"
+            commit = timing.get("commit", "-") if timing.get("commit") is not None else "-"
             
             print(f"{instr_id:<5} {name:<15} {issue:<8} {start_exec:<8} {finish_exec:<8} {write:<8} {commit:<8}")
         
@@ -358,18 +369,27 @@ class IntegratedSimulator:
         
         self.current_cycle += 1
         
-        # Step 1: Issue next instruction (if available)
+        # Step 1: Handle branch jumps from previous cycle (before issuing new instructions)
+        if hasattr(self.tomasulo_core, '_pending_branch_label') and self.tomasulo_core._pending_branch_label:
+            label = self.tomasulo_core._pending_branch_label
+            if label in self.label_map:
+                target_index = self.label_map[label]
+                self.issue_unit.jump_to_index(target_index)
+                print(f"Branch taken: jumping to label '{label}' at instruction index {target_index}")
+            self.tomasulo_core._pending_branch_label = None  # Clear the pending label
+        
+        # Step 2: Issue next instruction (if available)
         issued_instr = None
         if self.issue_unit.has_instructions():
             issued_instr, _ = self.issue_unit.issue_next(self.current_cycle)
         
-        # Step 2: Execute one cycle
+        # Step 3: Execute one cycle
         self.exec_manager.execute_cycle(self.current_cycle)
         
-        # Step 3: Commit if possible (can commit multiple entries per cycle)
+        # Step 4: Commit if possible (can commit multiple entries per cycle)
         committed = None
         while True:
-            commit_result = self.tomasulo_core.commit_rob_entry()
+            commit_result = self.tomasulo_core.commit_rob_entry(self.current_cycle, self.timing_tracker)
             if commit_result is None:
                 break
             committed = commit_result  # Track the last committed entry
@@ -391,6 +411,7 @@ class IntegratedSimulator:
         # Reinitialize all components
         parser = Parser()
         self.instructions = parser.parse(self.initial_assembly_file)
+        self.label_map = parser.get_label_map()  # Update label map
         
         # Reset components
         self.register_file = RegisterFile()

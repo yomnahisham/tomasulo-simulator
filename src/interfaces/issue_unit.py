@@ -61,10 +61,18 @@ class IssueUnit:
             - Vj, Vk are values if ready, None otherwise
             - Qj, Qk are ROB indices if not ready, None otherwise
         """
-        if instruction.get_name() == "BEQ":
+        name = instruction.get_name()
+        
+        if name == "BEQ":
+            # BEQ: rA and rB are the operands to compare
             rB = instruction.get_rA()
             rC = instruction.get_rB()
+        elif name == "STORE":
+            # STORE: rA is the value to store (Vj), rB is base for address (Vk)
+            rB = instruction.get_rA()  # Value to store
+            rC = instruction.get_rB()  # Base register for address
         else:
+            # Other instructions: rB and rC are the source operands
             rB = instruction.get_rB()
             rC = instruction.get_rC()
         
@@ -192,7 +200,7 @@ class IssueUnit:
         print(rs_message)
         if not success:
             return None, False
-        success = self.rob.push(instr._name, instr._rA)
+        success = self.rob.push(instr._name, instr._rA, instr.get_instr_id())
         if success:
             print(f"Issued instruction {instr.get_name()} to ROB index {(self.rob.buffer.tail - 1) % self.rob.max_size}")
         else:
@@ -216,3 +224,39 @@ class IssueUnit:
     def get_issued_instructions(self):
         """Return list of instructions already issued."""
         return self._issued_instructions
+    
+    def jump_to_label(self, label: str, label_map: dict) -> bool:
+        """
+        Jump to the instruction with the given label.
+        
+        args:
+            label: label name to jump to
+            label_map: dictionary mapping label names to instruction indices
+            
+        returns:
+            True if label found and jump successful, False otherwise
+        """
+        if label in label_map:
+            target_index = label_map[label]
+            return self.jump_to_index(target_index)
+        return False
+    
+    def jump_to_index(self, target_index: int) -> bool:
+        """
+        Jump to a specific instruction index.
+        If the instruction at that index was already issued, skip to the next unissued one.
+        
+        args:
+            target_index: instruction index to jump to
+            
+        returns:
+            True if index is valid, False otherwise
+        """
+        if 0 <= target_index < len(self._instructions):
+            # If we're jumping backwards (to an instruction that was already issued),
+            # we need to find the next unissued instruction
+            # But actually, if we flush, those instructions should be safe to re-issue
+            # So we just set the index
+            self._next_index = target_index
+            return True
+        return False

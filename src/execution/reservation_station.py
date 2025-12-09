@@ -126,6 +126,8 @@ class LoadRS(ReservationStation):
         self.instruction = None
         self.Op = None
         self.busy = False
+        self.state = None  # Reset state
+        self.dest = None  # Reset dest
         self.Vj = None
         self.Qj = None
         self.A = None
@@ -216,6 +218,8 @@ class StoreRS(ReservationStation):
         self.instruction = None
         self.Op = None
         self.busy = False
+        self.state = None  # Reset state
+        self.dest = None  # Reset dest
         self.Vj = None
         self.Qj = None
         self.Vk = None
@@ -324,6 +328,9 @@ class CALLRS(ReservationStation):
         self.instruction = None
         self.Op = None
         self.busy = False
+        self.state = None  # Reset state
+        self.dest = None  # Reset dest
+        self.A = None  # Reset A
 
 class BEQRS(ReservationStation):
     """Branch If Equal Reservation Station"""
@@ -402,9 +409,12 @@ class BEQRS(ReservationStation):
         self.instruction = None
         self.Op = None
         self.busy = False
+        self.state = None  # Reset state
+        self.dest = None  # Reset dest
         self.Vj = None
         self.Qj = None
         self.Vk = None
         self.Qk = None
+        self.A = None  # Reset A if it exists
 
     

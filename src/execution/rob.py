@@ -74,11 +74,12 @@ class circular_queue:
 
 
 class ROB_Entry:
-    def __init__(self, type: str, dest: int):
+    def __init__(self, type: str, dest: int, instr_id: int = None):
         self.name = type # e.g., 'LOAD', 'STORE', 'ADD', ...
         self.dest = dest
         self.ready = False
         self.value = None
+        self.instr_id = instr_id  # Store instruction ID for commit timing
 
     def update(self, value: Optional[int]) -> None:
         """
@@ -105,17 +106,18 @@ class ReorderBuffer:
         """
         return self.buffer.is_full()
     
-    def push(self, type: str, dest: int) -> bool:
+    def push(self, type: str, dest: int, instr_id: int = None) -> bool:
         """
         Add a new ROB entry
         args:
             type: type of instruction (e.g., 'LOAD', 'STORE', 'ALU', 'CALL', 'BEQ')
             dest: destination register or memory address
+            instr_id: instruction ID for commit timing tracking
 
         returns:
             True if successfully added, False if ROB is full
         """
-        entry = ROB_Entry(type, dest)
+        entry = ROB_Entry(type, dest, instr_id)
         success = self.buffer.enqueue(entry)
         return success
     
@@ -225,11 +227,13 @@ class ReorderBuffer:
             dest: destination register to find
 
         returns:
-            tuple of (ROB_Entry, index) if found, or (None, -1) if not found
+            tuple of (ROB_Entry, actual_rob_index) if found, or (None, -1) if not found
         """
         for i, entry in enumerate(self.buffer.traverse()):
             if entry is not None and entry.dest == dest:
-                return entry, i
+                # Calculate actual ROB index (head + relative position)
+                actual_index = (self.buffer.head + i) % self.max_size
+                return entry, actual_index
         return None, -1
     
     def print(self) -> None:
