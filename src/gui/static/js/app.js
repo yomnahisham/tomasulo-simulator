@@ -886,6 +886,141 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('compare-modal')?.classList.add('hidden');
     });
 
+    // Memory initialization handlers
+    let memoryEntryCount = 0;
+    
+    function createMemoryEntry() {
+        memoryEntryCount++;
+        const entryDiv = document.createElement('div');
+        entryDiv.className = 'flex items-center gap-2';
+        entryDiv.innerHTML = `
+            <input type="number" 
+                   class="memory-addr-input w-24 px-2 py-1 border border-gray-300 rounded text-sm" 
+                   placeholder="Address" 
+                   min="0" 
+                   step="1">
+            <span class="text-gray-600">=</span>
+            <input type="number" 
+                   class="memory-value-input w-32 px-2 py-1 border border-gray-300 rounded text-sm" 
+                   placeholder="Value (0-65535)" 
+                   min="0" 
+                   max="65535" 
+                   step="1">
+            <button class="remove-memory-entry-btn px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs">×</button>
+        `;
+        
+        const removeBtn = entryDiv.querySelector('.remove-memory-entry-btn');
+        removeBtn.addEventListener('click', () => {
+            entryDiv.remove();
+        });
+        
+        return entryDiv;
+    }
+    
+    function addMemoryEntry() {
+        const container = document.getElementById('memory-init-entries');
+        if (container) {
+            container.appendChild(createMemoryEntry());
+        }
+    }
+    
+    document.getElementById('init-memory-btn')?.addEventListener('click', () => {
+        const modal = document.getElementById('memory-init-modal');
+        const container = document.getElementById('memory-init-entries');
+        if (modal && container) {
+            // Clear existing entries and add one default entry
+            container.innerHTML = '';
+            container.appendChild(createMemoryEntry());
+            modal.classList.remove('hidden');
+        }
+    });
+    
+    document.getElementById('add-memory-entry-btn')?.addEventListener('click', addMemoryEntry);
+    
+    document.getElementById('close-memory-init-btn')?.addEventListener('click', () => {
+        document.getElementById('memory-init-modal')?.classList.add('hidden');
+    });
+    
+    document.getElementById('cancel-memory-init-btn')?.addEventListener('click', () => {
+        document.getElementById('memory-init-modal')?.classList.add('hidden');
+    });
+    
+    document.getElementById('apply-memory-init-btn')?.addEventListener('click', async () => {
+        const container = document.getElementById('memory-init-entries');
+        if (!container) return;
+        
+        const memoryData = {};
+        let hasError = false;
+        
+        // Collect all address-value pairs
+        const entries = container.querySelectorAll('.flex.items-center.gap-2');
+        entries.forEach(entry => {
+            const addrInput = entry.querySelector('.memory-addr-input');
+            const valueInput = entry.querySelector('.memory-value-input');
+            
+            if (addrInput && valueInput) {
+                const addr = addrInput.value.trim();
+                const value = valueInput.value.trim();
+                
+                if (addr && value) {
+                    const addrNum = parseInt(addr);
+                    const valueNum = parseInt(value);
+                    
+                    if (isNaN(addrNum) || addrNum < 0) {
+                        showError(`Invalid address: ${addr}`);
+                        hasError = true;
+                        return;
+                    }
+                    
+                    if (isNaN(valueNum) || valueNum < 0 || valueNum > 65535) {
+                        showError(`Invalid value: ${value} (must be 0-65535)`);
+                        hasError = true;
+                        return;
+                    }
+                    
+                    memoryData[addrNum] = valueNum;
+                }
+            }
+        });
+        
+        if (hasError) {
+            return;
+        }
+        
+        if (Object.keys(memoryData).length === 0) {
+            showError('Please enter at least one address-value pair');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await fetch('/api/memory/init', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(memoryData)
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to initialize memory');
+            }
+            
+            const state = await response.json();
+            updateAll(state);
+            
+            // Close modal
+            document.getElementById('memory-init-modal')?.classList.add('hidden');
+            
+            showSuccess(`Memory initialized with ${Object.keys(memoryData).length} value(s)`);
+        } catch (error) {
+            showError(error.message || 'Failed to initialize memory');
+        } finally {
+            showLoading(false);
+        }
+    });
+
     // Toggle activity panel
     document.getElementById('toggle-activity')?.addEventListener('click', () => {
         const panel = document.getElementById('current-activity');

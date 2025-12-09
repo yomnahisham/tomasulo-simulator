@@ -617,6 +617,38 @@ async def compare_states(index1: int, index2: int):
     }
 
 
+@app.post("/api/memory/init")
+async def initialize_memory(memory_data: dict):
+    """
+    Initialize memory with address-value pairs
+    
+    Args:
+        memory_data: Dictionary with address-value pairs, e.g., {"0": 42, "1": 100}
+    
+    Returns updated processor state
+    """
+    global simulator
+    
+    if simulator is None:
+        raise HTTPException(status_code=400, detail="No program loaded. Please load an assembly file first.")
+    
+    # Write each address-value pair to memory
+    for addr_str, value in memory_data.items():
+        try:
+            address = int(addr_str)
+            if address < 0:
+                raise HTTPException(status_code=400, detail=f"Invalid memory address: {address} (must be >= 0)")
+            # Ensure value is 16-bit
+            value = int(value) & 0xFFFF
+            simulator.memory.write_memory(address, value)
+            logger.info(f"Initialized memory[{address}] = {value}")
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid address or value: {addr_str} = {value}")
+    
+    # Return updated state
+    return simulator.get_current_state()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

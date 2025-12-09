@@ -76,6 +76,29 @@
             </div>
         </div>
 
+        <div id="memory-init-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
+                <div class="flex items-center justify-between p-4 border-b">
+                    <h2 class="text-lg font-semibold">Initialize Memory</h2>
+                    <button id="close-memory-init-btn" class="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm">Close</button>
+                </div>
+                <div class="flex-1 overflow-auto p-4">
+                    <p class="text-sm text-gray-600 mb-4">
+                        Enter address-value pairs to initialize memory before running your program. 
+                        Values are 16-bit (0-65535).
+                    </p>
+                    <div id="memory-init-entries" class="space-y-2 mb-4">
+                        <!-- Memory entries will be added here -->
+                    </div>
+                    <button id="add-memory-entry-btn" class="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 rounded text-sm mb-4">+ Add Entry</button>
+                    <div class="flex gap-2">
+                        <button id="apply-memory-init-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">Apply</button>
+                        <button id="cancel-memory-init-btn" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="welcome-message" class="hidden bg-white border rounded-lg p-6 mb-6">
             <h2 class="text-lg font-semibold mb-2">Getting Started</h2>
             <p class="text-gray-600 text-sm mb-4">
@@ -196,7 +219,10 @@
                 </section>
 
                 <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
-                    <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide mb-3 pb-2 border-b-2 border-gray-200">Memory</h2>
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b-2 border-gray-200">
+                        <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide">Memory</h2>
+                        <button id="init-memory-btn" class="text-xs text-blue-600 hover:text-blue-700 font-medium">Initialize</button>
+                    </div>
                     <div class="border-2 border-gray-200 rounded overflow-hidden max-h-64 overflow-y-auto">
                         <table id="memory-table" class="w-full text-xs">
                             <thead class="bg-gray-800 text-white sticky top-0">
