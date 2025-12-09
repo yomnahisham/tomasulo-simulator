@@ -39,3 +39,4 @@ class RegisterFile:
         Return the full register file (for debugging purposes)
         """
         return self._registers
+

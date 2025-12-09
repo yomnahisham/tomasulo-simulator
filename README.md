@@ -55,6 +55,8 @@ records execution timing (issue, start_exec, finish_exec, write, commit) for all
 
 ## Usage
 
+### Command Line Interface
+
 ```python
 from src.execution.execution_manager import ExecutionManager
 
@@ -75,6 +77,76 @@ for cycle in range(1, max_cycles + 1):
     # get timing information
     timing = exec_manager.get_timing_info()
 ```
+
+### Educational GUI Application
+
+The simulator includes a web-based educational GUI for visualizing processor internals.
+
+#### Installation
+
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+2. Start the GUI server:
+```bash
+uvicorn src.gui.app:app --reload
+```
+
+3. Open your browser and navigate to:
+```
+http://localhost:8000
+```
+
+#### GUI Features
+
+- **Step-by-Step Execution**: Execute one cycle at a time and observe processor state changes
+- **Full Simulation**: Run entire programs and view final results
+- **Real-Time Visualization**:
+  - Reservation Stations (all 12 RS with operands and status)
+  - Reorder Buffer (ROB entries with ready status)
+  - Register Alias Table (RAT mappings)
+  - Register File (all 8 registers)
+  - Memory (non-zero addresses)
+  - Functional Units (status and cycles remaining)
+  - Common Data Bus (CDB broadcasts)
+- **Timing Table**: View issue, execution, write, and commit cycles for all instructions
+- **Performance Metrics**: IPC, CPI, pipeline utilization
+- **File Loading**: Load assembly files (.s format) for simulation
+
+#### API Documentation
+
+Interactive API documentation is available at:
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+#### Using the GUI
+
+1. **Load a Program**: Click "Load Program" and select an assembly file
+   - Try the example file: `testcases/example.s` (demonstrates various instruction types)
+   - Or use: `testcases/test1.s` (simpler example)
+2. **Step Through**: Click "Step Cycle" to execute one cycle at a time and observe state changes
+3. **Run Full Simulation**: Click "Run Simulation" to execute the entire program automatically
+4. **Reset**: Click "Reset" to return to the initial state
+
+The GUI provides professional color-coded visualizations:
+- 🟢 **Green**: Ready/Complete instructions and ROB entries
+- 🟡 **Yellow/Amber**: Executing/Waiting instructions
+- 🔵 **Blue**: Issued instructions
+- ⚪ **Gray**: Empty/Free reservation stations
+
+#### Example Program
+
+An example assembly program is provided at `testcases/example.s` that demonstrates:
+- Memory load operations
+- Arithmetic operations (ADD, MUL, NAND)
+- Data dependencies between instructions
+- Memory store operations
+- Branch instructions (BEQ)
+- Function calls (CALL/RET)
+
+Load this file to see a comprehensive demonstration of the Tomasulo algorithm in action.
 
 
 

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tomasulo Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/assembly/assembly.min.js"></script>
+</head>
+<body class="bg-gray-50">
+    <header class="bg-gray-900 text-white border-b border-gray-800">
+        <div class="w-full px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <h1 class="text-xl font-semibold">Tomasulo Simulator</h1>
+                    <span class="text-sm text-gray-400">Cycle</span>
+                    <span id="cycle-counter" class="text-2xl font-mono font-bold">0</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="file" id="file-input" accept=".s" class="hidden">
+                    <button id="load-btn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">Load</button>
+                    <button id="step-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm">Step</button>
+                    <button id="run-btn" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm">Run</button>
+                    <button id="pause-btn" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded text-sm hidden">Pause</button>
+                    <button id="reset-btn" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm">Reset</button>
+                    <button id="undo-btn" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm disabled:opacity-50" disabled>Undo</button>
+                    <button id="redo-btn" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm disabled:opacity-50" disabled>Redo</button>
+                    <div class="flex items-center gap-2 px-3 py-2 bg-gray-800 rounded">
+                        <label class="text-xs text-gray-400">Speed:</label>
+                        <input type="range" id="speed-slider" min="100" max="2000" value="500" step="100" class="w-20">
+                        <span id="speed-display" class="text-xs font-mono w-10 text-right">500ms</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="w-full px-4 py-4">
+        <div id="editor-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+                <div class="flex items-center justify-between p-4 border-b">
+                    <h2 class="text-lg font-semibold">Code Editor</h2>
+                    <div class="flex gap-2">
+                        <button id="validate-btn" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">Validate</button>
+                        <button id="load-from-editor-btn" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-sm">Load</button>
+                        <button id="close-editor-btn" class="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm">Close</button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-hidden p-4">
+                    <textarea id="code-editor" class="w-full h-full font-mono text-sm"></textarea>
+                </div>
+                <div id="editor-errors" class="p-4 border-t max-h-32 overflow-y-auto"></div>
+            </div>
+        </div>
+
+        <div id="compare-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-7xl max-h-[90vh] flex flex-col">
+                <div class="flex items-center justify-between p-4 border-b">
+                    <h2 class="text-lg font-semibold">State Comparison</h2>
+                    <button id="close-compare-btn" class="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm">Close</button>
+                </div>
+                <div class="flex-1 overflow-auto p-4 grid grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="font-semibold mb-2">State 1 (Cycle <span id="compare-cycle-1">0</span>)</h3>
+                        <div id="compare-state-1"></div>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold mb-2">State 2 (Cycle <span id="compare-cycle-2">0</span>)</h3>
+                        <div id="compare-state-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="welcome-message" class="hidden bg-white border rounded-lg p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-2">Getting Started</h2>
+            <p class="text-gray-600 text-sm mb-4">
+                Load an assembly program to visualize the Tomasulo algorithm execution. The simulator displays
+                reservation stations, reorder buffer entries, register renaming, and functional unit activity.
+            </p>
+            <p class="text-sm text-gray-500">
+                Click "Load" and select an assembly file (.s format)
+            </p>
+        </div>
+
+        <!-- Current Activity Panel -->
+        <div id="current-activity" class="hidden bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-3 mb-3 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <h3 class="text-sm font-semibold text-gray-800">Current Cycle Activity</h3>
+                </div>
+                <button id="toggle-activity" class="text-xs text-gray-600 hover:text-gray-800">Hide</button>
+            </div>
+            <div id="activity-content" class="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                <div class="activity-item">
+                    <span class="text-gray-600">Issued:</span>
+                    <span id="activity-issued" class="ml-2 font-mono font-semibold text-blue-600">—</span>
+                </div>
+                <div class="activity-item">
+                    <span class="text-gray-600">Executing:</span>
+                    <span id="activity-executing" class="ml-2 font-mono font-semibold text-amber-600">—</span>
+                </div>
+                <div class="activity-item">
+                    <span class="text-gray-600">Completed:</span>
+                    <span id="activity-completed" class="ml-2 font-mono font-semibold text-green-600">—</span>
+                </div>
+                <div class="activity-item">
+                    <span class="text-gray-600">Committed:</span>
+                    <span id="activity-committed" class="ml-2 font-mono font-semibold text-emerald-600">—</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+            <div class="lg:col-span-3 space-y-3">
+                <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b-2 border-gray-200">
+                        <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide">Instructions</h2>
+                        <button id="editor-btn" class="text-xs text-blue-600 hover:text-blue-700 font-medium">Edit</button>
+                    </div>
+                    <div id="instructions-list" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                </section>
+
+                <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide mb-3 pb-2 border-b-2 border-gray-200">Timing</h2>
+                    <div class="border-2 border-gray-200 rounded overflow-hidden max-h-96 overflow-y-auto">
+                        <table id="timing-table" class="w-full text-xs">
+                            <thead class="bg-gray-800 text-white sticky top-0">
+                                <tr>
+                                    <th class="px-3 py-2.5 text-left font-semibold">ID</th>
+                                    <th class="px-3 py-2.5 text-left font-semibold">Instr</th>
+                                    <th class="px-3 py-2.5 text-center font-semibold">Issue</th>
+                                    <th class="px-3 py-2.5 text-center font-semibold">Exec</th>
+                                    <th class="px-3 py-2.5 text-center font-semibold">Finish</th>
+                                    <th class="px-3 py-2.5 text-center font-semibold">Write</th>
+                                    <th class="px-3 py-2.5 text-center font-semibold">Commit</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide mb-3 pb-2 border-b-2 border-gray-200">Metrics</h2>
+                    <div id="metrics-display" class="grid grid-cols-2 gap-3"></div>
+                </section>
+            </div>
+
+            <div class="lg:col-span-6 space-y-3">
+                <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide mb-3 pb-2 border-b-2 border-gray-200">Reservation Stations</h2>
+                    <div id="reservation-stations" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                </section>
+
+                <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide mb-3 pb-2 border-b-2 border-gray-200">Reorder Buffer</h2>
+                    <div id="rob-display" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                </section>
+
+                <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide mb-3 pb-2 border-b-2 border-gray-200">Register Alias Table</h2>
+                    <div class="border-2 border-gray-200 rounded overflow-hidden">
+                        <table id="rat-table" class="w-full text-xs">
+                            <thead class="bg-gray-800 text-white sticky top-0">
+                                <tr>
+                                    <th class="px-3 py-2.5 text-left font-semibold">Register</th>
+                                    <th class="px-3 py-2.5 text-left font-semibold">ROB Index</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <div class="lg:col-span-3 space-y-3">
+                <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide mb-3 pb-2 border-b-2 border-gray-200">Registers</h2>
+                    <div class="border-2 border-gray-200 rounded overflow-hidden">
+                        <table id="registers-table" class="w-full text-xs">
+                            <thead class="bg-gray-800 text-white sticky top-0">
+                                <tr>
+                                    <th class="px-3 py-2.5 text-left font-semibold">Register</th>
+                                    <th class="px-3 py-2.5 text-left font-semibold">Value</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide mb-3 pb-2 border-b-2 border-gray-200">Memory</h2>
+                    <div class="border-2 border-gray-200 rounded overflow-hidden max-h-64 overflow-y-auto">
+                        <table id="memory-table" class="w-full text-xs">
+                            <thead class="bg-gray-800 text-white sticky top-0">
+                                <tr>
+                                    <th class="px-3 py-2.5 text-left font-semibold">Address</th>
+                                    <th class="px-3 py-2.5 text-left font-semibold">Value</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide mb-3 pb-2 border-b-2 border-gray-200">Functional Units</h2>
+                    <div id="functional-units" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                </section>
+
+                <section class="bg-white border-2 border-gray-200 rounded-lg p-3 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-700 tracking-wide mb-3 pb-2 border-b-2 border-gray-200">Common Data Bus</h2>
+                    <div id="cdb-display" class="min-h-24 rounded border-2 border-gray-200"></div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <div id="loading-overlay" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 text-white">
+        <div class="text-center">
+            <div class="border-4 border-white border-t-transparent rounded-full w-12 h-12 animate-spin mx-auto mb-4"></div>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

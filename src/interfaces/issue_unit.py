@@ -34,19 +34,19 @@ class IssueUnit:
         Gets the operand needed
         If the register is not in the ROB, then it is read directly from the register file
         If the register is in the ROB and ready, then the value is returned
-        If the register is in the ROB but not ready, then the RS entry id is returned
+        If the register is in the ROB but not ready, then the ROB index is returned
 
         args:
             reg: register number
         
         returns:
-            tuple (ready: bool, value: int or RS entry id)
+            tuple (ready: bool, value: int or ROB index)
         """
-        rob, index = self.rob.find(reg)
-        if rob is None:
+        rob_entry, index = self.rob.find(reg)
+        if rob_entry is None:
             return True, self._register_file.read(reg)
-        if rob.ready:
-            return True, rob.value
+        if rob_entry.ready:
+            return True, rob_entry.value
         return False, index
 
     def get_source_operands(self, instruction: Instruction) -> tuple[int, int, int, int]:
@@ -162,10 +162,10 @@ class IssueUnit:
             cycle: current cycle number.
 
         returns:
-            instruction: the issued instruction, or None if all issued.
+            tuple: (instruction, success) where instruction is the issued instruction or None, and success is a boolean
         """
         if self._next_index >= len(self._instructions):
-            return None  # nothing left to issue
+            return None, False  # nothing left to issue
         
         instr = self._instructions[self._next_index]
         instr.set_issue_cycle(cycle)
@@ -191,13 +191,13 @@ class IssueUnit:
         success, rs_message = self.rs_issue(instr, rob_index)
         print(rs_message)
         if not success:
-            return None
+            return None, False
         success = self.rob.push(instr._name, instr._rA)
         if success:
             print(f"Issued instruction {instr.get_name()} to ROB index {(self.rob.buffer.tail - 1) % self.rob.max_size}")
         else:
             print(f"Failed to issue instruction {instr.get_name()}: ROB is full")
-            return None
+            return None, False
         rob_index = (self.rob.buffer.tail - 1) % self.rob.max_size
         if instr._rA is not None:
             self.rat_mapping(instr._rA, rob_index)
@@ -207,7 +207,7 @@ class IssueUnit:
         self._issued_instructions.append(instr)
         self._next_index += 1
 
-        return instr
+        return instr, success
     
     def has_instructions(self):
         """Check if there are instructions left to issue."""

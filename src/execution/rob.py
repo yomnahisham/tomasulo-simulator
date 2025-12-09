@@ -1,6 +1,6 @@
 """Reorder Buffer class with ROB entry management."""
 
-from typing import Any, List
+from typing import Any, List, Optional, Tuple
 
 
 class circular_queue:
@@ -174,18 +174,45 @@ class ReorderBuffer:
     
     def flush_tail(self, index: int) -> List[int]:
         """
-        Flush the ROB
+        Flush the ROB from tail up to (but not including) the given index
+        
+        args:
+            index: ROB index to flush up to (this entry is kept)
+            
+        returns:
+            tuple of (list of flushed ROB indices, list of destination registers)
         """
         rob_indices = []
         dest_regs = []
-        while self.buffer.tail-1 != index:
-            print(f"Flushing ROB entry at index {self.buffer.tail - 1} with dest R{self.peek_back().dest}")
-            rob_indices.append(self.buffer.tail - 1)
-            dest_regs.append((self.peek_back().dest))
+        # Check if queue is empty before flushing
+        if self.buffer.count == 0:
+            return rob_indices, dest_regs
+        
+        # Calculate the actual tail index in the circular buffer
+        actual_tail_index = (self.buffer.tail - 1 + self.max_size) % self.max_size
+        
+        # Flush entries from tail backwards until we reach the target index
+        while actual_tail_index != index and self.buffer.count > 0:
+            entry = self.peek_back()
+            if entry is None:
+                break
+            
+            # Get the actual index before popping
+            current_index = (self.buffer.tail - 1 + self.max_size) % self.max_size
+            print(f"Flushing ROB entry at index {current_index} with dest R{entry.dest if entry.dest is not None else 'None'}")
+            rob_indices.append(current_index)
+            dest_regs.append(entry.dest)
             self.pop_back()
+            
+            # Update actual_tail_index after popping
+            if self.buffer.count > 0:
+                actual_tail_index = (self.buffer.tail - 1 + self.max_size) % self.max_size
+            else:
+                break
+                
         return rob_indices, dest_regs
     
-    def find(self, dest: int) -> tuple[ROB_Entry | None, int]: 
+    def find(self, dest: int) -> Tuple[Optional[ROB_Entry], int]: 
         """
         Find a register in the ROB by destination register
 

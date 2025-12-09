@@ -40,6 +40,11 @@ class ExecutionManager:
         """
         self.current_cycle = current_cycle
         
+        # step 0: clear CDB from previous cycle (before processing new write-back)
+        # this allows the CDB to remain busy during the cycle it broadcasts
+        # and only be cleared at the start of the next cycle
+        self.cdb.clear()
+        
         # step 1: process write-back from previous cycle (CDB broadcast)
         # this makes results available for instructions waiting in RS
         self.writeback_stage.process_write_back(current_cycle, self.timing_tracker)
@@ -59,8 +64,8 @@ class ExecutionManager:
         # instructions can now use results that were just written back
         self._start_ready_instructions()
         
-        # step 6: clear CDB for next cycle
-        self.cdb.clear()
+        # note: CDB is NOT cleared here - it remains busy during this cycle
+        # and will be cleared at the start of the next cycle (step 0 above)
     
     def _handle_finished_execution(self, fu, rs_entry_id: int, instruction: Dict[str, Any], result: Any) -> None:
         """

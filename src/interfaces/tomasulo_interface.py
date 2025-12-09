@@ -228,16 +228,41 @@ class TomasuloCore:
         note:
             should update Qj/Qk in RS entries that are waiting for this ROB index
         """
+        # Qj and Qk store ROB indices, not destination registers
+        # Check if ROB entry still exists (might have been flushed)
+        rob_entry = None
+        try:
+            if 0 <= rob_index < self.rob.max_size and self.rob.buffer.count > 0:
+                # Try to get the entry - it might have been flushed
+                entries = self.rob.buffer.traverse()
+                for i, entry in enumerate(entries):
+                    actual_index = (self.rob.buffer.head + i) % self.rob.max_size
+                    if actual_index == rob_index and entry is not None:
+                        rob_entry = entry
+                        break
+        except Exception:
+            # ROB entry doesn't exist (was flushed), skip forwarding
+            return
+
+        # If ROB entry was flushed, don't forward (it's already been handled)
+        if rob_entry is None:
+            return
 
         for rs in self.reservation_stations.values():
-            if hasattr(rs, 'Qj') and not hasattr(rs, 'Qk') and rs.Qj == self.rob.buffer.at(rob_index).dest:
-                print(f"Forwarding to RS with single source: {rs}")
-                rs.source_update(value)
+            if not rs.busy:
+                continue
+                
+            # Check for single-source RS (like LOAD)
+            if hasattr(rs, 'Qj') and not hasattr(rs, 'Qk'):
+                if rs.Qj == rob_index:
+                    print(f"Forwarding to RS with single source: {rs}")
+                    rs.source_update(value)
             else:
-                if hasattr(rs, 'Qj') and rs.Qj == self.rob.buffer.at(rob_index).dest:
+                # Check for dual-source RS (like ADD, STORE, BEQ)
+                if hasattr(rs, 'Qj') and rs.Qj == rob_index:
                     print(f"Forwarding to RS source1: {rs}")
                     rs.source1_update(value)
-                if hasattr(rs, 'Qk') and rs.Qk == self.rob.buffer.at(rob_index).dest:
+                if hasattr(rs, 'Qk') and rs.Qk == rob_index:
                     print(f"Forwarding to RS source2: {rs}")
                     rs.source2_update(value)
 
@@ -293,7 +318,14 @@ class TomasuloCore:
         returns:
             committed ROB entry value, or None if not ready
         """
+        # Check if ROB is empty before trying to commit
+        if self.rob.buffer.count == 0:
+            return None
+        
         oldest_entry = self.rob.peek_front()
+        if oldest_entry is None:
+            return None
+        
         if oldest_entry.ready:
             if oldest_entry.name in {"LOAD", "ADD", "SUB", "NAND", "MUL"}:
                 self.reg_file.write(oldest_entry.dest, oldest_entry.value)
