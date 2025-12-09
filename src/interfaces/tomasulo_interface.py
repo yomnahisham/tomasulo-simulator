@@ -26,6 +26,7 @@ class TomasuloCore:
         self.rob = rob if rob is not None else ReorderBuffer()
         self.rat = rat if rat is not None else [None] * 8
         self._pending_branch_label = None  # Store label for branch jumps
+        self._pending_branch_target = None  # Store target address for RET jumps
         self._recently_flushed_ids = []  # Track instruction IDs flushed in the last cycle
         self._flushed_rs_entry_ids = []  # Track RS entry IDs flushed in the last cycle
 
@@ -155,8 +156,11 @@ class TomasuloCore:
             instr = rs_entry['instruction']
             if instr.get('op') == 'BEQ' and 'immediate' not in operands:
                 operands['immediate'] = instr.get('immediate', 0) or 0
-            if instr.get('op') in ['BEQ', 'CALL', 'RET'] and 'pc' not in operands:
-                operands['pc'] = 0  # Default PC, should be tracked properly
+            # PC is stored in RS entry for CALL/RET, use it if available
+            if 'PC' in rs_entry and rs_entry['PC'] is not None:
+                operands['pc'] = rs_entry['PC']
+            elif instr.get('op') in ['BEQ', 'CALL', 'RET'] and 'pc' not in operands:
+                operands['pc'] = 0  # Default PC if not available
         return operands
     
     def print_rs(self) -> None:
@@ -254,9 +258,13 @@ class TomasuloCore:
         for rs in self.reservation_stations.values():
             if not rs.busy:
                 continue
-                
+            
+            # Check for CALLRS (RET uses R1 via Qj)
+            if hasattr(rs, 'Op') and rs.Op == "RET" and hasattr(rs, 'Qj') and rs.Qj == rob_index:
+                print(f"Forwarding to RET RS (R1): {rs}")
+                rs.source_update(value)
             # Check for single-source RS (like LOAD)
-            if hasattr(rs, 'Qj') and not hasattr(rs, 'Qk'):
+            elif hasattr(rs, 'Qj') and not hasattr(rs, 'Qk'):
                 if rs.Qj == rob_index:
                     print(f"Forwarding to RS with single source: {rs}")
                     rs.source_update(value)
@@ -290,8 +298,11 @@ class TomasuloCore:
             flushed_ids = self.flush(rob_index)
             # Store flushed instruction IDs for integration layer to track
             self._recently_flushed_ids.extend([id for id in flushed_ids if id is not None])
-            # Store label for later use by integration layer
+            # Store label for later use by integration layer (for CALL/BEQ)
             self._pending_branch_label = label
+            # Store target address for RET (when label is None)
+            if label is None:
+                self._pending_branch_target = target
             return target
         return None
 

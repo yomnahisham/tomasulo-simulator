@@ -311,8 +311,11 @@ class CALLRS(ReservationStation):
     def __init__(self):
         super().__init__()
         self.A = None
+        self.Vj = None  # For RET: R1 value
+        self.Qj = None  # For RET: ROB index producing R1
+        self.PC = None  # Instruction index (PC) for CALL/RET
     
-    def push(self, instruction: Instruction, Op: str, dest, A: int):
+    def push(self, instruction: Instruction, Op: str, dest, A: int, Vj=None, Qj=None, PC=None):
         if self.busy:
             raise Exception("CALLRS is already busy")
         self.instruction = instruction
@@ -320,9 +323,21 @@ class CALLRS(ReservationStation):
         self.busy = True
         self.A = A
         self.dest = dest
+        self.Vj = Vj
+        self.Qj = Qj
+        self.PC = PC
 
     def is_ready(self) -> bool:
+        # For CALL: always ready (no operands needed)
+        # For RET: ready if R1 is available (Qj is None)
+        if self.Op == "RET":
+            return self.busy and self.Qj is None
         return self.busy
+    
+    def source_update(self, value: int) -> None:
+        """Update R1 value when it becomes ready (for RET)"""
+        self.Vj = value
+        self.Qj = None
 
     def pop(self):
         self.instruction = None
@@ -331,6 +346,9 @@ class CALLRS(ReservationStation):
         self.state = None  # Reset state
         self.dest = None  # Reset dest
         self.A = None  # Reset A
+        self.Vj = None
+        self.Qj = None
+        self.PC = None
 
 class BEQRS(ReservationStation):
     """Branch If Equal Reservation Station"""

@@ -119,6 +119,7 @@ class IntegratedSimulator:
                 self.tomasulo_core._flushed_rs_entry_ids = []  # Clear after flushing
             
             # Step 2.6: Handle branch jumps if branch was taken
+            # Handle label-based jumps (CALL/BEQ)
             if hasattr(self.tomasulo_core, '_pending_branch_label') and self.tomasulo_core._pending_branch_label:
                 label = self.tomasulo_core._pending_branch_label
                 if label in self.label_map:
@@ -127,6 +128,20 @@ class IntegratedSimulator:
                     if verbose:
                         print(f"Branch taken: jumping to label '{label}' at instruction index {target_index}")
                 self.tomasulo_core._pending_branch_label = None  # Clear the pending label
+            # Handle address-based jumps (RET)
+            elif hasattr(self.tomasulo_core, '_pending_branch_target') and self.tomasulo_core._pending_branch_target is not None:
+                target_index = self.tomasulo_core._pending_branch_target
+                self.issue_unit.jump_to_index(target_index)
+                if verbose:
+                    print(f"RET: jumping to return address (instruction index {target_index})")
+                self.tomasulo_core._pending_branch_target = None  # Clear the pending target
+            # Handle address-based jumps (RET)
+            elif hasattr(self.tomasulo_core, '_pending_branch_target') and self.tomasulo_core._pending_branch_target is not None:
+                target_index = self.tomasulo_core._pending_branch_target
+                self.issue_unit.jump_to_index(target_index)
+                if verbose:
+                    print(f"RET: jumping to return address (instruction index {target_index})")
+                self.tomasulo_core._pending_branch_target = None  # Clear the pending target
             
             # Step 3: Commit if possible
             committed = self.tomasulo_core.commit_rob_entry(self.current_cycle, self.timing_tracker)
@@ -387,6 +402,7 @@ class IntegratedSimulator:
         self.current_cycle += 1
         
         # Step 1: Handle branch jumps from previous cycle (before issuing new instructions)
+        # Handle label-based jumps (CALL/BEQ)
         if hasattr(self.tomasulo_core, '_pending_branch_label') and self.tomasulo_core._pending_branch_label:
             label = self.tomasulo_core._pending_branch_label
             if label in self.label_map:
@@ -394,6 +410,12 @@ class IntegratedSimulator:
                 self.issue_unit.jump_to_index(target_index)
                 print(f"Branch taken: jumping to label '{label}' at instruction index {target_index}")
             self.tomasulo_core._pending_branch_label = None  # Clear the pending label
+        # Handle address-based jumps (RET)
+        elif hasattr(self.tomasulo_core, '_pending_branch_target') and self.tomasulo_core._pending_branch_target is not None:
+            target_index = self.tomasulo_core._pending_branch_target
+            self.issue_unit.jump_to_index(target_index)
+            print(f"RET: jumping to return address (instruction index {target_index})")
+            self.tomasulo_core._pending_branch_target = None  # Clear the pending target
         
         # Step 2: Issue next instruction (if available)
         issued_instr = None

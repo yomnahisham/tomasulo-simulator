@@ -71,6 +71,10 @@ class IssueUnit:
             # STORE: rA is the value to store (Vj), rB is base for address (Vk)
             rB = instruction.get_rA()  # Value to store
             rC = instruction.get_rB()  # Base register for address
+        elif name == "RET":
+            # RET: R1 is the operand (return address)
+            rB = 1  # R1 contains return address
+            rC = None
         else:
             # Other instructions: rB and rC are the source operands
             rB = instruction.get_rB()
@@ -134,7 +138,13 @@ class IssueUnit:
             return False, "BEQ RSs are busy"
         elif name in {'CALL', 'RET'}:
             if not self.reservation_stations['CALL/RET'].busy:
-                self.reservation_stations['CALL/RET'].push(instruction, Op=name, A=instruction.get_immediate(), dest=rob_index)
+                # For RET, pass R1 operand (Vj/Qj)
+                # For CALL, Vj and Qj are None (no operands needed)
+                ret_Vj = Vj if name == "RET" else None
+                ret_Qj = Qj if name == "RET" else None
+                # Store instruction index as PC (for computing return address)
+                instruction_pc = self._next_index  # Current instruction index
+                self.reservation_stations['CALL/RET'].push(instruction, Op=name, A=instruction.get_immediate(), dest=rob_index, Vj=ret_Vj, Qj=ret_Qj, PC=instruction_pc)
                 message = (f"Issued {name} to RS CALL/RET")
                 return True, message
             else:
@@ -202,8 +212,14 @@ class IssueUnit:
             return None, False
         
         # For CALL, dest should be R1 (where return address is written)
+        # For RET, dest is None (doesn't write to registers, just branches)
         # For other instructions, use rA from instruction
-        dest_reg = 1 if instr._name == "CALL" else instr._rA
+        if instr._name == "CALL":
+            dest_reg = 1
+        elif instr._name == "RET":
+            dest_reg = None
+        else:
+            dest_reg = instr._rA
         
         success = self.rob.push(instr._name, dest_reg, instr.get_instr_id())
         if success:

@@ -296,6 +296,12 @@ class CallRetFU(FunctionalUnit):
         elif op == "RET":
             # return address is in R1
             r1_val = self.operands.get("Vj", 0)  # R1 value
+            # If R1 contains a dict (from CALL forwarding), extract return_address
+            if isinstance(r1_val, dict):
+                r1_val = r1_val.get("return_address", 0)
+            # Ensure r1_val is an integer
+            if not isinstance(r1_val, int):
+                r1_val = 0
             return {
                 "target": r1_val & 0xFFFF,
             }

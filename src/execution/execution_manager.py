@@ -130,6 +130,12 @@ class ExecutionManager:
                 result = call_result
             elif inst_type == "RET":
                 r1_val = fu.operands.get("Vj", 0)
+                # If R1 contains a dict (from CALL forwarding), extract return_address
+                if isinstance(r1_val, dict):
+                    r1_val = r1_val.get("return_address", 0)
+                # Ensure r1_val is an integer
+                if not isinstance(r1_val, int):
+                    r1_val = 0
                 ret_result = self.branch_evaluator.evaluate_ret(r1_val)
                 # notify Part 2 of RET target (unconditional branch)
                 self.tomasulo_interface.notify_branch_result(
