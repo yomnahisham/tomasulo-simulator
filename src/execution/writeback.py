@@ -21,7 +21,7 @@ class WriteBackStage:
         self.memory_interface = memory_interface
         self.write_queue = []  # queue of results waiting to be written back
     
-    def add_result(self, rob_index: int, value: Any, instruction_type: str, instruction: Dict[str, Any], rs_entry_id: int) -> None:
+    def add_result(self, rob_index: int, value: Any, instruction_type: str, instruction: Dict[str, Any], rs_entry_id: str) -> None:
         """
         add a finished execution result to write-back queue
         
@@ -105,6 +105,10 @@ class WriteBackStage:
             # record write cycle timing
             if timing_tracker:
                 timing_tracker.record_write(instruction.get("instr_id"), current_cycle)
+            
+            # clear the reservation station entry after successful writeback
+            if rs_entry_id is not None:
+                self.tomasulo_interface.clear_rs_entry(rs_entry_id) 
     
     def handle_store_write(self, address: int, value: int) -> None:
         """

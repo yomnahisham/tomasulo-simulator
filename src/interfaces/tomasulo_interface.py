@@ -296,6 +296,16 @@ class TomasuloCore:
             rs_entry_id: RS entry id (string key)
         """
         self.reservation_stations[rs_entry_id].change_state("EXECUTING")
+    
+    def clear_rs_entry(self, rs_entry_id: str) -> None:
+        """
+        clear a reservation station entry after its result has been written back to ROB
+        
+        args:
+            rs_entry_id: RS entry id (string key)
+        """
+        if rs_entry_id in self.reservation_stations:
+            self.reservation_stations[rs_entry_id].pop()
 
 
 
@@ -336,8 +346,22 @@ class TomasuloCore:
         
         if oldest_entry.ready:
             # Record commit timing if timing_tracker and cycle are provided
+            # If ROB entry is ready, it means the instruction has finished and been written back
             if timing_tracker is not None and cycle is not None and oldest_entry.instr_id is not None:
-                timing_tracker.record_commit(oldest_entry.instr_id, cycle)
+                timing = timing_tracker.get_timing(oldest_entry.instr_id)
+                if timing:
+                    write = timing.get("write")
+                    existing_commit = timing.get("commit")
+                    # Only record commit if:
+                    # 1. Not already committed, AND
+                    # 2. Either write time is not recorded yet (same cycle), or commit is after write
+                    if existing_commit is None:
+                        if write is None or cycle >= write:
+                            timing_tracker.record_commit(oldest_entry.instr_id, cycle)
+                    elif cycle > existing_commit:
+                        # Update commit time if this is a later cycle (shouldn't happen, but handle it)
+                        if write is None or cycle >= write:
+                            timing_tracker.record_commit(oldest_entry.instr_id, cycle)
             
             if oldest_entry.name in {"LOAD", "ADD", "SUB", "NAND", "MUL"}:
                 self.reg_file.write(oldest_entry.dest, oldest_entry.value)
