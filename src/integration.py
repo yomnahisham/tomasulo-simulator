@@ -96,19 +96,27 @@ class IntegratedSimulator:
             
             # Step 1: Issue next instruction (if available)
             if self.issue_unit.has_instructions():
-                issued, _ = self.issue_unit.issue_next(self.current_cycle)
+                issued, success = self.issue_unit.issue_next(self.current_cycle)
+                # If instruction was successfully re-issued after being flushed, clear its flushed status
+                if issued and success and issued.get_instr_id() in self.flushed_instructions:
+                    self.flushed_instructions.discard(issued.get_instr_id())
                 if issued and verbose:
                     print(f"Issued: {issued.get_name()}")
             
             # Step 2: Execute one cycle
             self.exec_manager.execute_cycle(self.current_cycle)
             
-            # Step 2.5: Track flushed instructions
+            # Step 2.5: Track flushed instructions and flush functional units
             if hasattr(self.tomasulo_core, '_recently_flushed_ids') and self.tomasulo_core._recently_flushed_ids:
                 for flushed_id in self.tomasulo_core._recently_flushed_ids:
                     if flushed_id is not None:
                         self.flushed_instructions.add(flushed_id)
                 self.tomasulo_core._recently_flushed_ids = []  # Clear after tracking
+            
+            # Step 2.6: Flush functional units for flushed RS entries
+            if hasattr(self.tomasulo_core, '_flushed_rs_entry_ids') and self.tomasulo_core._flushed_rs_entry_ids:
+                self.exec_manager.flush_functional_units(self.tomasulo_core._flushed_rs_entry_ids)
+                self.tomasulo_core._flushed_rs_entry_ids = []  # Clear after flushing
             
             # Step 2.6: Handle branch jumps if branch was taken
             if hasattr(self.tomasulo_core, '_pending_branch_label') and self.tomasulo_core._pending_branch_label:
@@ -390,17 +398,25 @@ class IntegratedSimulator:
         # Step 2: Issue next instruction (if available)
         issued_instr = None
         if self.issue_unit.has_instructions():
-            issued_instr, _ = self.issue_unit.issue_next(self.current_cycle)
-        
+            issued_instr, success = self.issue_unit.issue_next(self.current_cycle)
+            # If instruction was successfully re-issued after being flushed, clear its flushed status
+            if issued_instr and success and issued_instr.get_instr_id() in self.flushed_instructions:
+                self.flushed_instructions.discard(issued_instr.get_instr_id())
+
         # Step 3: Execute one cycle
         self.exec_manager.execute_cycle(self.current_cycle)
         
-        # Step 3.5: Track flushed instructions
+        # Step 3.5: Track flushed instructions and flush functional units
         if hasattr(self.tomasulo_core, '_recently_flushed_ids') and self.tomasulo_core._recently_flushed_ids:
             for flushed_id in self.tomasulo_core._recently_flushed_ids:
                 if flushed_id is not None:
                     self.flushed_instructions.add(flushed_id)
             self.tomasulo_core._recently_flushed_ids = []  # Clear after tracking
+        
+        # Step 3.6: Flush functional units for flushed RS entries
+        if hasattr(self.tomasulo_core, '_flushed_rs_entry_ids') and self.tomasulo_core._flushed_rs_entry_ids:
+            self.exec_manager.flush_functional_units(self.tomasulo_core._flushed_rs_entry_ids)
+            self.tomasulo_core._flushed_rs_entry_ids = []  # Clear after flushing
         
         # Step 4: Commit if possible (can commit multiple entries per cycle)
         committed = None

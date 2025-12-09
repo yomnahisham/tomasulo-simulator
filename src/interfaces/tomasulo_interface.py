@@ -27,6 +27,7 @@ class TomasuloCore:
         self.rat = rat if rat is not None else [None] * 8
         self._pending_branch_label = None  # Store label for branch jumps
         self._recently_flushed_ids = []  # Track instruction IDs flushed in the last cycle
+        self._flushed_rs_entry_ids = []  # Track RS entry IDs flushed in the last cycle
 
     
     def rat_mapping(self, reg: int, rob_index: int) -> None:
@@ -572,6 +573,7 @@ class TomasuloCore:
                 self.rat[i] = None
         
         # Flush RS - clear entries that reference flushed ROB indices
+        flushed_rs_entry_ids = []  # Track RS entry IDs that are being flushed
         for key, rs in self.reservation_stations.items(): # flush RS
             if not rs.busy:
                 continue
@@ -590,12 +592,16 @@ class TomasuloCore:
                 should_flush = True
             
             if should_flush:
+                flushed_rs_entry_ids.append(key)  # Track this RS entry ID
                 rs.pop()
                 # Make sure state is also reset
                 if hasattr(rs, 'state'):
                     rs.state = None
                 if hasattr(rs, 'dest'):
                     rs.dest = None
+        
+        # Store flushed RS entry IDs for execution manager to flush functional units
+        self._flushed_rs_entry_ids = flushed_rs_entry_ids
         
         return instr_ids
             

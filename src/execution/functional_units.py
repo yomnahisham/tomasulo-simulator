@@ -1,7 +1,7 @@
 """functional unit classes for executing instructions"""
 
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 
 class FUState(Enum):
@@ -417,4 +417,34 @@ class FUPool:
                 })
         
         return status
+    
+    def flush_rs_entries(self, rs_entry_ids: List[str]) -> None:
+        """
+        flush functional units that are executing instructions for the given RS entry IDs
+        
+        args:
+            rs_entry_ids: list of RS entry IDs to flush
+        """
+        if not rs_entry_ids:
+            return
+        
+        flushed_count = 0
+        for fu_list in [
+            self.add_sub_units,
+            self.nand_units,
+            self.mul_units,
+            self.load_units,
+            self.store_units,
+            self.beq_units,
+            self.call_ret_units,
+        ]:
+            for fu in fu_list:
+                # Flush if FU is executing or finished (hasn't been reset yet) and matches RS entry ID
+                if fu.rs_entry_id in rs_entry_ids and (fu.is_busy() or fu.state == FUState.finished):
+                    print(f"Flushing FU {fu.unit_type} (state: {fu.state.value}) executing RS entry {fu.rs_entry_id}")
+                    fu.reset()
+                    flushed_count += 1
+        
+        if flushed_count > 0:
+            print(f"Flushed {flushed_count} functional unit(s)")
 

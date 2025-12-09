@@ -260,4 +260,14 @@ class ExecutionManager:
             TimingTracker instance
         """
         return self.timing_tracker
+    
+    def flush_functional_units(self, rs_entry_ids: List[str]) -> None:
+        """
+        flush functional units that are executing instructions for the given RS entry IDs
+        
+        args:
+            rs_entry_ids: list of RS entry IDs (RS names) to flush
+        """
+        if rs_entry_ids:
+            self.fu_pool.flush_rs_entries(rs_entry_ids)
 
