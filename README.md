@@ -322,13 +322,6 @@ python -m pytest tests/
 - `src/gui/`: Web-based visualization
 - `src/integration.py`: Complete integrated simulator
 
-## License
-
-[Add your license here]
-
-## Contributing
-
-[Add contribution guidelines here]
 
 ## Acknowledgments
 
