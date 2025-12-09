@@ -1,6 +1,6 @@
 from typing import Optional
 
-from execution.rob import ReorderBuffer
+from ..execution.rob import ReorderBuffer
 from .instruction import Instruction
 from .register_interface import RegisterFile
 from ..execution.timing_tracker import TimingTracker
@@ -28,6 +28,71 @@ class IssueUnit:
             rob_index: ROB index to map to
         """
         self.rat[reg] = rob_index
+
+    def get_operand(self, reg: int) -> tuple[bool, int]:
+        """
+        Gets the operand needed
+        If the register is not in the ROB, then it is read directly from the register file
+        If the register is in the ROB and ready, then the value is returned
+        If the register is in the ROB but not ready, then the RS entry id is returned
+
+        args:
+            reg: register number
+        
+        returns:
+            tuple (ready: bool, value: int or RS entry id)
+        """
+        rob, index = self.rob.find(reg)
+        if rob is None:
+            return True, self._register_file.read(reg)
+        if rob.ready:
+            return True, rob.value
+        return False, index
+
+    def get_source_operands(self, instruction: Instruction) -> tuple[int, int, int, int]:
+        """
+        Get source operands for an instruction, handling register renaming via RAT
+        
+        args:
+            instruction: instruction to get operands for
+        
+        returns:
+            tuple (Vj, Qj, Vk, Qk) where:
+            - Vj, Vk are values if ready, None otherwise
+            - Qj, Qk are ROB indices if not ready, None otherwise
+        """
+        if instruction.get_name() == "BEQ":
+            rB = instruction.get_rA()
+            rC = instruction.get_rB()
+        else:
+            rB = instruction.get_rB()
+            rC = instruction.get_rC()
+        
+        if rB is not None:
+            foundB, valueB = self.get_operand(rB)
+            if foundB:
+                Vj = valueB
+                Qj = None
+            else:
+                Vj = None
+                Qj = valueB
+        else:
+            Vj = None
+            Qj = None
+        
+        if rC is not None:
+            foundC, valueC = self.get_operand(rC)
+            if foundC:
+                Vk = valueC
+                Qk = None
+            else:
+                Vk = None
+                Qk = valueC
+        else:
+            Vk = None
+            Qk = None
+            
+        return Vj, Qj, Vk, Qk
 
     def rs_issue(self, instruction: Instruction, rob_index: int) -> tuple[bool, str]:
         """
@@ -89,7 +154,7 @@ class IssueUnit:
                 return False, "MUL RS is busy"
         return False, "Unsupported instruction type"
 
-    def issue_next(self, cycle, instruction: Instruction):
+    def issue_next(self, cycle):
         """
         Issue the next instruction in the list.
 
@@ -123,25 +188,26 @@ class IssueUnit:
             index of the new ROB entry
         """
         rob_index = (self.rob.buffer.tail) % self.rob.max_size
-        success, rs_message = self.rs_issue(instruction, rob_index)
+        success, rs_message = self.rs_issue(instr, rob_index)
         print(rs_message)
         if not success:
-            return False
-        success = self.rob.push(instruction._name, instruction._rA)
+            return None
+        success = self.rob.push(instr._name, instr._rA)
         if success:
-            print(f"Issued instruction {instruction.get_name()} to ROB index {(self.rob.buffer.tail - 1) % self.rob.max_size}")
+            print(f"Issued instruction {instr.get_name()} to ROB index {(self.rob.buffer.tail - 1) % self.rob.max_size}")
         else:
-            print(f"Failed to issue instruction {instruction.get_name()}: ROB is full")
-            return False
+            print(f"Failed to issue instruction {instr.get_name()}: ROB is full")
+            return None
         rob_index = (self.rob.buffer.tail - 1) % self.rob.max_size
-        self.rat_mapping(instruction._rA, rob_index)
+        if instr._rA is not None:
+            self.rat_mapping(instr._rA, rob_index)
 
         # print(f"[Cycle {cycle}] Issued {instr.get_name()} | rA = {rA_val} rB = {rB_val} rC = {rC_val} immediate = {instr.get_immediate()} label = {instr.get_label()}")
 
         self._issued_instructions.append(instr)
         self._next_index += 1
 
-        return instr, success
+        return instr
     
     def has_instructions(self):
         """Check if there are instructions left to issue."""

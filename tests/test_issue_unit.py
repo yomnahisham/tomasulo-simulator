@@ -4,35 +4,56 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import unittest
-from src.interfaces.parser import Parser
 from src.interfaces.instruction import Instruction
 from src.interfaces.register_interface import RegisterFile
 from src.interfaces.issue_unit import IssueUnit
 from src.execution.timing_tracker import TimingTracker
+from src.execution.reservation_station import LoadRS, StoreRS, BEQRS, CALLRS, ALURS
+from src.execution.rob import ReorderBuffer
 
 class TestIssueUnit(unittest.TestCase):
     """verify correctness of IssueUnit behavior"""
 
     def setUp(self):
-        # create small set of instructions
-        assembly_code = [
-            "LOAD R1, 0(R0)",
-            "ADD R2, R1, R1",
-            "STORE R2, 4(R0)",
-            "NAND R3, R2, R1",
+        # create small set of instructions directly with proper parameters
+        self.instructions = [
+            Instruction(name="LOAD", rA=1, rB=0, immediate=0, instr_id=1),
+            Instruction(name="ADD", rA=2, rB=1, rC=1, instr_id=2),
+            Instruction(name="STORE", rA=2, rB=0, immediate=4, instr_id=3),
+            Instruction(name="NAND", rA=3, rB=2, rC=1, instr_id=4),
         ]
-        # mock parser
-        self.instructions = []
-        for idx, line in enumerate(assembly_code):
-            instr = Instruction(line.strip(), instr_id=idx+1)
-            self.instructions.append(instr)
         
         # create register file and timing tracker
         self.registers = RegisterFile()
         self.timing_tracker = TimingTracker()
         
+        # create reservation stations, ROB, and RAT
+        self.reservation_stations = {
+            'LOAD1': LoadRS(),
+            'LOAD2': LoadRS(),
+            'STORE': StoreRS(),
+            'BEQ1': BEQRS(),
+            'BEQ2': BEQRS(),
+            'CALL/RET': CALLRS(),
+            'ADD/SUB1': ALURS(),
+            'ADD/SUB2': ALURS(),
+            'ADD/SUB3': ALURS(),
+            'ADD/SUB4': ALURS(),
+            'NAND': ALURS(),
+            'MUL': ALURS()
+        }
+        self.rob = ReorderBuffer()
+        self.rat = [None] * 8
+        
         # create IssueUnit
-        self.issue_unit = IssueUnit(self.instructions, self.registers, self.timing_tracker)
+        self.issue_unit = IssueUnit(
+            self.instructions, 
+            self.registers, 
+            self.timing_tracker,
+            self.reservation_stations,
+            self.rob,
+            self.rat
+        )
 
     def test_issue_one_per_cycle(self):
         """verify only one instruction is issued per cycle"""
