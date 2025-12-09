@@ -1,4 +1,5 @@
 """reservation stations for storing instructions before execution."""
+from ..interfaces.instruction import Instruction
 
 class ReservationStation:
     """Base class for reservation stations"""
@@ -7,6 +8,7 @@ class ReservationStation:
         self.busy = False
         self.instruction = None
         self.state = None # 'EMPTY', 'ISSUED', 'EXECUTING', 'COMPLETED'
+        self.dest = None
     
     def is_busy(self) -> bool:
         """
@@ -51,6 +53,8 @@ class ReservationStation:
             True if in COMPLETED state, False otherwise
         """
         return self.state == 'COMPLETED' and self.busy
+    
+    
         
 class LoadRS(ReservationStation):
     """Load Reservation Station"""
@@ -60,7 +64,7 @@ class LoadRS(ReservationStation):
         self.Qj = None
         self.A = None
     
-    def push(self, instruction, A, Vj=None, Qj=None) -> None:
+    def push(self, instruction: Instruction, A, dest, Vj=None, Qj=None) -> None:
         """
         Push a new instruction into the LoadRS
         
@@ -82,6 +86,7 @@ class LoadRS(ReservationStation):
         self.Vj = Vj
         self.Qj = Qj
         self.A = A
+        self.dest = dest
 
     def is_ready(self) -> bool:
         """
@@ -135,7 +140,7 @@ class StoreRS(ReservationStation):
         self.Qk = None
         self.A = None
     
-    def push(self, instruction, A, Vj=None, Qj=None, Vk=None, Qk=None) -> None:
+    def push(self, instruction: Instruction, A, dest, Vj=None, Qj=None, Vk=None, Qk=None) -> None:
         """
         Push a new instruction into the StoreRS
         
@@ -163,6 +168,7 @@ class StoreRS(ReservationStation):
         self.Vk = Vk
         self.Qk = Qk
         self.A = A
+        self.dest = dest
 
     def is_ready(self) -> bool:
         """
@@ -225,7 +231,7 @@ class ALURS(ReservationStation):
         self.Vk = None
         self.Qk = None
     
-    def push(self, instruction, Op, Vj=None, Qj=None, Vk=None, Qk=None) -> None:
+    def push(self, instruction: Instruction, Op, dest, Vj=None, Qj=None, Vk=None, Qk=None) -> None:
         """   
         Push a new instruction into the ALURS
         args:
@@ -253,6 +259,7 @@ class ALURS(ReservationStation):
         self.Qj = Qj
         self.Vk = Vk
         self.Qk = Qk
+        self.dest = dest
 
     def is_ready(self) -> bool:
         """  
@@ -301,21 +308,17 @@ class CALLRS(ReservationStation):
         super().__init__()
         self.A = None
     
-    def push(self, instruction, Op: str, PC: int, A: int):
+    def push(self, instruction: Instruction, Op: str, dest, A: int):
         if self.busy:
             raise Exception("CALLRS is already busy")
         self.instruction = instruction
         self.Op = Op
         self.busy = True
-        self.PC = PC
         self.A = A
+        self.dest = dest
 
     def is_ready(self) -> bool:
         return self.busy
-    
-    def compute_address(self):
-        self.A = self.PC + self.A
-        return self.A
 
     def pop(self):
         self.instruction = None
@@ -330,9 +333,9 @@ class BEQRS(ReservationStation):
         self.Qj = None
         self.Vk = None
         self.Qk = None
-        self.immediate = None
+        self.A = None
     
-    def push(self, instruction, Vj=None, Qj=None, Vk=None, Qk=None) -> None:
+    def push(self, instruction: Instruction, A, dest, Vj=None, Qj=None, Vk=None, Qk=None) -> None:
         """
         Push a new instruction into the BEQRS
 
@@ -360,6 +363,8 @@ class BEQRS(ReservationStation):
         self.Qj = Qj
         self.Vk = Vk
         self.Qk = Qk
+        self.A = A
+        self.dest = dest
 
     def is_ready(self) -> bool:
         """

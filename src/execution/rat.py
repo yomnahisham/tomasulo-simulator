@@ -6,7 +6,7 @@ class register:
 
 class RAT:
     def __init__(self, size: int = 8):
-        self.table = [register() for _ in range(size)]
+        self.table = {i: register() for i in range(size)}
 
     def update(self, index: int, tag: int, value: int):
         entry = self.table[index]

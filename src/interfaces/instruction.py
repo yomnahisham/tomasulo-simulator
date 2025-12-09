@@ -41,3 +41,29 @@ class Instruction:
 
     def set_instr_id(self, instr_id):
         self._instr_id = instr_id
+    
+    def __str__(self):
+        """Return a readable string representation of the instruction."""
+        parts = [self._name]
+        
+        # Add registers
+        if self._rA is not None:
+            parts.append(f"R{self._rA}")
+        if self._rB is not None:
+            parts.append(f"R{self._rB}")
+        if self._rC is not None:
+            parts.append(f"R{self._rC}")
+        
+        # Add immediate if present
+        if self._immediate is not None:
+            parts.append(f"#{self._immediate}")
+        
+        # Add label if present
+        if self._label is not None:
+            parts.append(self._label)
+        
+        return " ".join(parts)
+    
+    def __repr__(self):
+        """Return a detailed representation for debugging."""
+        return f"Instruction({self.__str__()})"

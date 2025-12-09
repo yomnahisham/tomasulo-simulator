@@ -65,7 +65,7 @@ def forward_to_rs(rob_index: int, value: Any) -> None:
     core.forward_to_rs(rob_index, value)
 
 
-def update_rat(rob_index: int, value: Any) -> None:
+def update_rat(dest_reg: int, rob_index: int) -> None: # TODO: change function if needed
     """
     update RAT if mapping is still active
     
@@ -77,7 +77,7 @@ def update_rat(rob_index: int, value: Any) -> None:
         this function is to be implemented by Part 2 (tomasulo core)
         should update RAT entry if it still points to this ROB index
     """
-    core.update_rat(rob_index, value)
+    core.clear_rat_mapping(dest_reg, rob_index)
 
 
 def notify_branch_result(rob_index: int, taken: bool, target: int) -> None:

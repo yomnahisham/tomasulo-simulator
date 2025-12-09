@@ -5,7 +5,7 @@ class RegisterFile:
         self._registers = [0] * 8 # 8 registers, all initialized to 0
 
 
-    def read(self, register):
+    def read(self, register: int) -> int:
         """
         Read value from register
         
@@ -15,7 +15,7 @@ class RegisterFile:
         returns:
             16-bit register value (R0 always returns 0)
         """
-        if (register < 0 or register >= 7):
+        if (register < 0 or register > 7):
             raise ValueError(f"Invalid register index: {register}")
         
         return self._registers[register]
